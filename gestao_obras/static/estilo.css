@@ -176,6 +176,29 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .etapa-cab .barra { grid-column: 1 / -1; }
 .etapa-corpo { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 12px; border-top: 1px dashed var(--linha); padding-top: 12px; }
 
+/* ----- detalhamento da etapa */
+.etapa-desc { margin: 0; max-width: 75ch; }
+.det-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; }
+.det-bloco { background: var(--bg); border-radius: var(--raio); padding: 10px 12px; min-width: 0; }
+.det-largo { grid-column: 1 / -1; }
+.det-bloco h4, .etapa-sec h3 { font-family: var(--fonte-corpo); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tinta-2); margin: 0 0 6px; font-weight: 600; }
+.det-bloco ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; }
+.det-atencao { background: var(--atencao-bg); }
+.det-atencao h4 { color: var(--atencao); }
+.det-dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 0.88rem; }
+.det-dl dt { color: var(--tinta-2); }
+.det-dl dd { margin: 0; min-width: 0; }
+.tabela-compacta td { padding: 4px 8px; font-size: 0.85rem; white-space: normal; }
+.tabela-compacta td:first-child { padding-left: 0; }
+.tabela-compacta tr:last-child td { border-bottom: 0; }
+.etapa-sec { display: flex; flex-direction: column; gap: 8px; }
+.tag-obs { display: inline-block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0 6px; border-radius: 3px; background: var(--info-bg); color: var(--info); font-weight: 600; }
+.form-obs { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.form-obs textarea { width: 100%; resize: vertical; min-height: 4.5em; }
+.banner-modelo { border-color: var(--sinal); box-shadow: inset 4px 0 0 var(--sinal); }
+.banner-modelo h2 { margin: 0; }
+.banner-modelo p { margin: 0; max-width: 80ch; color: var(--tinta-2); }
+
 /* ----- checklist (botões) */
 .checklist { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
 .chk { display: flex; align-items: center; gap: 4px; }

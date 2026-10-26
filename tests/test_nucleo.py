@@ -26,7 +26,7 @@ def test_catalogo_consistente():
 def test_criar_obra_distribui_orcamento_e_cronograma(obra):
     assert len(obra.etapas) == 17
     assert sum(e.orcamento for e in obra.etapas) == pytest.approx(1_000_000, abs=1)
-    assert obra.etapa("EST").orcamento == pytest.approx(180_000)
+    assert obra.etapa("EST").orcamento == pytest.approx(120_000)
     for e in obra.etapas:
         assert obra.inicio <= e.inicio_previsto <= e.fim_previsto <= obra.fim_previsto
         for p in e.predecessoras:  # nenhuma etapa começa antes da predecessora terminar
@@ -81,10 +81,10 @@ def test_alternar_item_registra_data(obra):
 
 def test_progresso_ponderado(obra):
     assert an.progresso_fisico(obra) == 0
-    sv.marcar_etapa(obra, "EST", True, HOJE)  # 18%
-    assert an.progresso_fisico(obra) == pytest.approx(0.18)
-    sv.marcar_etapa(obra, "PRE", True, HOJE)  # +3%
-    assert an.progresso_fisico(obra) == pytest.approx(0.21)
+    sv.marcar_etapa(obra, "EST", True, HOJE)  # 12%
+    assert an.progresso_fisico(obra) == pytest.approx(0.12)
+    sv.marcar_etapa(obra, "PRE", True, HOJE)  # +4%
+    assert an.progresso_fisico(obra) == pytest.approx(0.16)
     por_fase = an.por_categoria_etapa(obra)
     assert por_fase["Supraestrutura"]["progresso"] == pytest.approx(1)
     assert list(por_fase)[0] == "Preparação"
@@ -242,15 +242,16 @@ def test_numero_formato_brasileiro():
 
 def test_medicao_valor_executado_pelo_checklist(obra):
     """Etapa concluída soma o valor orçado como executado, mesmo sem compras lançadas."""
-    sv.marcar_etapa(obra, "PRE", True, HOJE)        # 100% de R$ 30.000
-    fun = obra.etapa("FUN")                          # 2 de 7 itens de R$ 80.000
+    sv.marcar_etapa(obra, "PRE", True, HOJE)        # 100% de R$ 40.000 (peso 4%)
+    fun = obra.etapa("FUN")                          # 2 itens de R$ 70.000 (peso 7%)
+    n = len(fun.checklist)
     for i in fun.checklist[:2]:
         sv.alternar_item_etapa(obra, "FUN", i.id, HOJE)
     linhas = {l["codigo"]: l for l in an.custos_por_etapa(obra)}
-    assert linhas["PRE"]["executado"] == 30_000 and linhas["PRE"]["a_executar"] == 0
-    assert linhas["FUN"]["executado"] == pytest.approx(80_000 * 2 / 7, abs=0.01)
+    assert linhas["PRE"]["executado"] == 40_000 and linhas["PRE"]["a_executar"] == 0
+    assert linhas["FUN"]["executado"] == pytest.approx(70_000 * 2 / n, abs=0.01)
     fin = an.resumo_financeiro(obra)
-    assert fin["executado"] == pytest.approx(30_000 + 80_000 * 2 / 7, abs=0.01)
+    assert fin["executado"] == pytest.approx(40_000 + 70_000 * 2 / n, abs=0.01)
     assert fin["executado"] + fin["a_executar"] == pytest.approx(1_000_000, abs=0.05)
     fases = an.por_categoria_etapa(obra)
-    assert fases["Preparação"]["executado"] == pytest.approx(30_000)
+    assert fases["Preparação"]["executado"] == pytest.approx(40_000)

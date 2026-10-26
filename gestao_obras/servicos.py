@@ -7,7 +7,9 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from .etapas import ETAPAS_PADRAO
+import copy
+
+from .etapas import CAMPOS_DESCRITIVOS, ETAPAS_PADRAO, MODELO_VERSAO
 from .modelos import (
     CATEGORIAS_COMPRA,
     PRIORIDADES,
@@ -54,14 +56,16 @@ def criar_obra(
     fim_previsto: str = "",
     orcamento_total=0,
     exemplo: bool = False,
+    area_construida=100,
 ) -> Obra:
-    """Cria a obra com todas as etapas padrão, distribuindo orçamento e
-    cronograma proporcionalmente ao peso de cada etapa."""
+    """Cria a obra com todas as etapas padrão, distribuindo o orçamento pelo
+    peso de cada etapa e o cronograma pela duração típica e pela sequência."""
     d_ini = ler_data(inicio)
     d_fim = ler_data(fim_previsto)
     if d_ini and d_fim and d_fim <= d_ini:
         raise ValidacaoErro("A data de término deve ser posterior ao início")
     orc = ler_numero(orcamento_total, "Orçamento")
+    area = _area(area_construida)
 
     obra = Obra(
         nome=_texto(nome, "o nome da obra"),
@@ -72,23 +76,97 @@ def criar_obra(
         fim_previsto=d_fim.isoformat() if d_fim else "",
         orcamento_total=orc,
         exemplo=exemplo,
+        area_construida=area,
+        modelo_etapas=MODELO_VERSAO,
     )
-    obra.etapas = [
-        Etapa(
-            codigo=e["codigo"],
-            nome=e["nome"],
-            categoria=e["categoria"],
-            peso=e["peso"],
-            predecessoras=list(e["predecessoras"]),
-            normas=list(e["normas"]),
-            checklist=[ItemChecklist(texto=t) for t in e["checklist"]],
-            orcamento=round(orc * e["peso"] / 100, 2),
-        )
-        for e in ETAPAS_PADRAO
-    ]
+    obra.etapas = [_etapa_do_catalogo(e, orc) for e in ETAPAS_PADRAO]
     if d_ini and d_fim:
         planejar_cronograma(obra)
     return obra
+
+
+def _area(valor) -> float:
+    area = ler_numero(valor if valor not in (None, "") else 100, "Área construída")
+    if not 10 <= area <= 5000:
+        raise ValidacaoErro("Área construída deve ficar entre 10 e 5.000 m²")
+    return area
+
+
+def _etapa_do_catalogo(e: dict, orcamento_total: float) -> Etapa:
+    return Etapa(
+        codigo=e["codigo"],
+        nome=e["nome"],
+        categoria=e["categoria"],
+        peso=e["peso"],
+        predecessoras=list(e["predecessoras"]),
+        checklist=[ItemChecklist(texto=t) for t in e["checklist"]],
+        orcamento=round(orcamento_total * e["peso"] / 100, 2),
+        **{c: copy.deepcopy(e[c]) for c in CAMPOS_DESCRITIVOS},
+    )
+
+
+def completar_detalhes(obra: Obra) -> bool:
+    """Preenche o detalhamento técnico (escopo, quantitativos, equipe...) das
+    etapas que ainda não têm, sem mexer em checklist, pesos ou valores.
+    Usado ao carregar obras criadas antes do catálogo detalhado."""
+    catalogo = {e["codigo"]: e for e in ETAPAS_PADRAO}
+    mudou = False
+    for etapa in obra.etapas:
+        cat = catalogo.get(etapa.codigo)
+        if cat and not etapa.descricao:
+            for c in CAMPOS_DESCRITIVOS:
+                setattr(etapa, c, copy.deepcopy(cat[c]))
+            mudou = True
+    return mudou
+
+
+def aplicar_modelo(obra: Obra) -> dict:
+    """Atualiza as etapas da obra para o catálogo atual, preservando o que já
+    foi feito: itens marcados continuam marcados, itens criados pelo usuário
+    são mantidos, observações, datas e orçamentos ajustados à mão também.
+    Retorna um resumo do que mudou."""
+    catalogo = {e["codigo"]: e for e in ETAPAS_PADRAO}
+    existentes = {e.codigo: e for e in obra.etapas}
+    novas: list[Etapa] = []
+    itens_novos = 0
+    for cat in ETAPAS_PADRAO:
+        atual = existentes.pop(cat["codigo"], None)
+        if atual is None:
+            novas.append(_etapa_do_catalogo(cat, obra.orcamento_total))
+            itens_novos += len(cat["checklist"])
+            continue
+        # orçamento: só redistribui se ainda era o valor proporcional ao peso antigo
+        proporcional = abs(atual.orcamento - round(obra.orcamento_total * atual.peso / 100, 2)) < 0.01
+        por_texto = {i.texto: i for i in atual.checklist}
+        lista = []
+        for texto in cat["checklist"]:
+            item = por_texto.pop(texto, None)
+            if item is None:
+                item = ItemChecklist(texto=texto)
+                itens_novos += 1
+            lista.append(item)
+        lista.extend(i for i in atual.checklist if i.texto in por_texto)  # itens do usuário
+        atual.checklist = lista
+        atual.nome, atual.categoria, atual.peso = cat["nome"], cat["categoria"], cat["peso"]
+        atual.predecessoras = list(cat["predecessoras"])
+        for c in CAMPOS_DESCRITIVOS:
+            setattr(atual, c, copy.deepcopy(cat[c]))
+        if proporcional:
+            atual.orcamento = round(obra.orcamento_total * cat["peso"] / 100, 2)
+        novas.append(atual)
+    novas.extend(existentes.values())  # etapas fora do catálogo ficam no fim
+    obra.etapas = novas
+    obra.modelo_etapas = MODELO_VERSAO
+    return {"itens_novos": itens_novos}
+
+
+def salvar_observacao(obra: Obra, codigo: str, texto: str) -> Etapa:
+    etapa = obra.etapa(codigo)
+    t = str(texto or "").replace("\r\n", "\n").strip()
+    if len(t) > 2000:
+        raise ValidacaoErro("Observação muito longa (máx. 2.000 caracteres)")
+    etapa.observacao = t
+    return etapa
 
 
 def planejar_cronograma(obra: Obra) -> None:
@@ -98,7 +176,8 @@ def planejar_cronograma(obra: Obra) -> None:
     d_ini, d_fim = ler_data(obra.inicio), ler_data(obra.fim_previsto)
     if not (d_ini and d_fim):
         raise ValidacaoErro("Defina início e término da obra para planejar o cronograma")
-    duracao = {e.codigo: max(e.peso, 0.5) for e in obra.etapas}
+    # duração típica da etapa (dias); obras antigas sem esse dado usam o peso
+    duracao = {e.codigo: float(e.duracao_dias) if e.duracao_dias > 0 else max(e.peso, 0.5) for e in obra.etapas}
     fim_rel: dict[str, float] = {}
     ini_rel: dict[str, float] = {}
     for e in obra.etapas:  # catálogo já está em ordem topológica

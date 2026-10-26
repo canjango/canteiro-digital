@@ -94,6 +94,14 @@ class Etapa:
     inicio_previsto: str = ""
     fim_previsto: str = ""
     orcamento: float = 0.0
+    # detalhamento técnico (vem do catálogo de etapas)
+    descricao: str = ""
+    servicos: list[dict] = field(default_factory=list)  # {servico, un, qtd} para a área de referência
+    equipe: str = ""
+    atencao: list[str] = field(default_factory=list)
+    duracao_dias: int = 0
+    # anotação livre do usuário
+    observacao: str = ""
 
     @classmethod
     def de_dict(cls, d: dict) -> "Etapa":
@@ -159,6 +167,8 @@ class Obra:
     compras: list[Compra] = field(default_factory=list)
     tarefas: list[Tarefa] = field(default_factory=list)
     exemplo: bool = False
+    area_construida: float = 100.0  # m²; escala os quantitativos de referência
+    modelo_etapas: int = 1  # versão do catálogo de etapas aplicada (1 = obras antigas)
     id: str = field(default_factory=lambda: novo_id("obra"))
 
     # ---------------------------------------------------------- serialização

@@ -82,7 +82,7 @@ def test_editar_obra_redistribui_orcamento(sis):
     d = {"nome": o.nome, "cliente": "", "endereco": "", "responsavel_tecnico": "",
          "inicio": o.inicio, "fim_previsto": o.fim_previsto, "orcamento_total": "1000000"}
     assert sis.despachar("obra.editar", d)["ok"]
-    assert o.etapa("FUN").orcamento == 80_000
+    assert o.etapa("FUN").orcamento == 70_000
     assert o.etapa("EST").orcamento == 999
 
 

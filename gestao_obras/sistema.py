@@ -62,6 +62,7 @@ class Sistema:
         for doc in documentos or []:
             try:
                 o = Obra.de_dict(doc)
+                sv.completar_detalhes(o)  # obras antigas ganham o detalhamento técnico
                 novas[o.id] = o
             except (TypeError, ValueError, KeyError) as exc:
                 falhas.append(f"{doc.get('id', '?') if isinstance(doc, dict) else '?'}: {exc}")
@@ -142,7 +143,7 @@ class Sistema:
         o = sv.criar_obra(
             d.get("nome", ""), d.get("cliente", ""), d.get("endereco", ""),
             d.get("responsavel_tecnico", ""), d.get("inicio", ""), d.get("fim_previsto", ""),
-            d.get("orcamento_total", 0),
+            d.get("orcamento_total", 0), area_construida=d.get("area_construida", 100),
         )
         self.obras[o.id] = o
         self.ui.update(obra=o.id, aba="etapas", abertas=[o.etapas[0].codigo], filtro_etapa="")
@@ -168,6 +169,7 @@ class Sistema:
             for e in o.etapas:
                 if abs(e.orcamento - round(o.orcamento_total * e.peso / 100, 2)) < 0.01:
                     e.orcamento = round(novo_orc * e.peso / 100, 2)
+        o.area_construida = sv._area(d.get("area_construida", o.area_construida))
         o.nome, o.orcamento_total = nome, novo_orc
         o.cliente = " ".join(str(d.get("cliente", "")).split())
         o.endereco = " ".join(str(d.get("endereco", "")).split())
@@ -175,6 +177,13 @@ class Sistema:
         o.inicio = ini.isoformat() if ini else ""
         o.fim_previsto = fim.isoformat() if fim else ""
         return self._mudou("Dados da obra salvos")
+
+    def _a_obra_atualizar_modelo(self, d):
+        o = self._obra_ativa()
+        r = sv.aplicar_modelo(o)
+        if o.inicio and o.fim_previsto:
+            sv.planejar_cronograma(o)
+        return self._mudou(f"Etapas atualizadas para o modelo de residência de 100 m² · {r['itens_novos']} itens novos de checklist")
 
     def _a_obra_replanejar(self, d):
         o = self._obra_ativa()
@@ -216,6 +225,10 @@ class Sistema:
     def _a_etapa_remover_item(self, d):
         sv.remover_item_etapa(self._obra_ativa(), d.get("codigo", ""), d.get("item", ""))
         return self._mudou("Item removido")
+
+    def _a_etapa_observacao(self, d):
+        e = sv.salvar_observacao(self._obra_ativa(), d.get("codigo", ""), d.get("observacao", ""))
+        return self._mudou(f"Observação de “{e.nome}” salva" if e.observacao else f"Observação de “{e.nome}” apagada")
 
     def _a_etapa_salvar(self, d):
         sv.atualizar_etapa(self._obra_ativa(), d.get("codigo", ""), orcamento=d.get("orcamento"),
@@ -274,11 +287,14 @@ def obra_exemplo(hoje: date) -> Obra:
         "Residência unifamiliar (exemplo)", "Cliente exemplo", "Rua Exemplo, 100",
         "Responsável técnico", ini.isoformat(), fim.isoformat(), 850000, exemplo=True,
     )
-    feito = {"PRE": 7, "TER": 4, "FUN": 7, "EST": 5, "ALV": 2}
+    feito = {"PRE": 12, "TER": 8, "FUN": 11, "EST": 6, "ALV": 4}
     for cod, n in feito.items():
         etapa = o.etapa(cod)
         for item in etapa.checklist[:n]:
             sv._alternar(item, hoje - timedelta(days=10))
+
+    sv.salvar_observacao(o, "EST", "Laje do quarto 2 com escoramento reforçado (vão maior). "
+                                    "Concretagem condicionada à conferência das armaduras.")
 
     def compra(desc, et, cat, q, un, vu, forn, status, dias, prio="Média"):
         c = sv.adicionar_compra(o, desc, et, cat, q, un, vu, forn, prio, (hoje + timedelta(days=dias)).isoformat(), hoje)

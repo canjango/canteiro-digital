@@ -20,7 +20,16 @@
     const idFoco = ativo && app.contains(ativo) ? ativo.id : "";
     const chaveFoco = ativo && app.contains(ativo) ? chave(ativo) : null;
     const y = window.scrollY;
+    // preserva rascunhos (texto digitado e ainda não salvo) de campos que não foram enviados
+    const rascunhos = {};
+    if (!opts.topo) app.querySelectorAll("input[id], textarea[id]").forEach((el) => {
+      if (el.type !== "date" && el.value !== el.defaultValue && !(opts.enviado && opts.enviado.contains(el))) rascunhos[el.id] = el.value;
+    });
     app.innerHTML = html;
+    for (const [id, valor] of Object.entries(rascunhos)) {
+      const el = document.getElementById(id);
+      if (el) el.value = valor;
+    }
     if (opts.topo) window.scrollTo(0, 0);
     else window.scrollTo(0, y);
     let alvo = idFoco ? document.getElementById(idFoco) : null;
@@ -30,12 +39,14 @@
     if (alvo) try { alvo.focus({ preventScroll: true }); } catch (e) {}
   }
 
-  async function executar(nome, dados) {
+  async function executar(nome, dados, enviado) {
     if (ocupado) return;
     ocupado = true;
     try {
       const r = await window.Backend.acao(nome, dados);
-      pintar(r.html, { topo: nome === "ui.aba" || nome === "obra.selecionar" || nome === "obra.criar" || nome === "obra.exemplo" });
+      const trocaTela = nome === "ui.aba" || nome === "obra.selecionar" || nome === "obra.criar" || nome === "obra.exemplo";
+      // ao trocar de tela ou quando a ação falha, o formulário enviado mantém o que foi digitado
+      pintar(r.html, { topo: trocaTela && r.ok, enviado: r.ok ? enviado : null });
       if (window.Backend.persistir) window.Backend.persistir(r.gravar || [], r.remover || []);
     } catch (e) {
       console.error(e);
@@ -61,7 +72,7 @@
     e.preventDefault();
     const d = dadosDe(f);
     for (const [k, v] of new FormData(f)) d[k] = v;
-    executar(f.dataset.action, d);
+    executar(f.dataset.action, d, f);
   });
   app.addEventListener("change", (e) => {
     const s = e.target.closest("select[data-action]");

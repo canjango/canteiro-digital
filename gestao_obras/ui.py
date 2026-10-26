@@ -12,7 +12,7 @@ from __future__ import annotations
 from html import escape
 
 from . import analise as an
-from .etapas import CATEGORIAS
+from .etapas import CATEGORIAS, MODELO_VERSAO
 from .modelos import (
     CATEGORIAS_COMPRA,
     PRIORIDADES,
@@ -62,9 +62,9 @@ def valor_br(v: float | None, casas: int = 2) -> str:
 
 
 def campo_num(id_: str, nome: str, valor: float | None = None, placeholder: str = "0,00",
-              obrigatorio: bool = False, rotulo: str | None = None) -> str:
+              obrigatorio: bool = False, rotulo: str | None = None, texto: str | None = None) -> str:
     """Campo numérico em texto com teclado decimal: aceita 300.000 / 300.000,00 / 300000."""
-    v = valor_br(valor) if valor is not None else ""
+    v = texto if texto is not None else (valor_br(valor) if valor is not None else "")
     req = " required" if obrigatorio else ""
     aria = f' aria-label="{esc(rotulo)}"' if rotulo else ""
     return (f'<input id="{esc(id_)}" name="{nome}" type="text" inputmode="decimal" autocomplete="off" '
@@ -130,7 +130,7 @@ def render_topo(sis: Sistema) -> str:
     if o:
         seletor = (f'<select id="sel-obra" class="sel-obra" data-action="obra.selecionar" name="id" aria-label="Obra ativa">'
                    + opcoes([x.id for x in _ordenadas(sis)], o.id, [x.nome for x in _ordenadas(sis)]) + "</select>")
-        meta = " · ".join(esc(x) for x in (o.cliente, o.endereco) if x)
+        meta = " · ".join(esc(x) for x in (o.cliente, o.endereco, f"{_num(o.area_construida)} m²") if x)
         datas = f"{an.data_br(o.inicio)} → {an.data_br(o.fim_previsto)}" if o.inicio else "sem cronograma"
         info = f'<p class="topo-meta">{meta}{" · " if meta else ""}{datas}{" · <b>exemplo</b>" if o.exemplo else ""}</p>'
     else:
@@ -303,9 +303,19 @@ def render_etapas(sis: Sistema) -> str:
         grupos.append(f'<section class="fase"><h2 class="fase-tit">{esc(cat)}</h2>{cards}</section>')
     replanejar = (botao("Recalcular cronograma", "obra.replanejar", "btn btn-sec")
                   if o.inicio and o.fim_previsto else "")
+    banner = ""
+    if o.modelo_etapas < MODELO_VERSAO:
+        banner = f"""
+<section class="cartao banner-modelo">
+  <h2>Modelo de etapas revisado para residência de 100 m²</h2>
+  <p>Sequência corrigida (alvenaria em paralelo com a estrutura), pesos de custo revisados, novos itens de checklist e cronograma pela duração típica de cada etapa.
+  Itens já marcados, itens que você criou, observações e orçamentos ajustados à mão são mantidos. Como entram itens novos, a porcentagem de avanço pode baixar.</p>
+  <div class="linha-acoes">{botao("Aplicar modelo revisado", "obra.atualizar_modelo", "btn")}</div>
+</section>"""
     return f"""
+{banner}
 <div class="barra-acoes">
-  <p class="nota">Toque em uma etapa para abrir o checklist. Etapas só ficam “Liberadas” quando as predecessoras terminam.</p>
+  <p class="nota">Toque em uma etapa para ver escopo, quantitativos, checklist e observações. Etapas só ficam “Liberadas” quando as predecessoras terminam.</p>
   {replanejar}
 </div>
 {''.join(grupos)}"""
@@ -322,7 +332,7 @@ def _card_etapa(sis: Sistema, o: Obra, e, hoje) -> str:
   <span class="cod">{esc(e.codigo)}</span>
   <span class="etapa-nome">{esc(e.nome)}</span>
   {pill(st)}
-  <span class="etapa-info">{feitos}/{len(e.checklist)} itens · {datas} · {an.moeda(e.orcamento)} · peso {e.peso:g}%</span>
+  <span class="etapa-info">{feitos}/{len(e.checklist)} itens · {datas} · {an.moeda(e.orcamento)} · peso {e.peso:g}%{f" · {e.duracao_dias} dias úteis" if e.duracao_dias else ""}{' <span class="tag-obs">observação</span>' if e.observacao else ""}</span>
   {barra(prog, '', an.fracao_prevista(e, hoje) if e.inicio_previsto else None)}
 </button>"""
     if not aberta:
@@ -338,7 +348,7 @@ def _card_etapa(sis: Sistema, o: Obra, e, hoje) -> str:
         for i in e.checklist
     )
     pend = an.predecessoras_pendentes(o, e)
-    aviso_pred = (f'<p class="nota nota-atencao">Aguardando: {esc(", ".join(o.etapa(p).nome for p in pend))}</p>' if pend else "")
+    aviso_pred = (f'<p class="nota nota-atencao">Aguardando: {esc(", ".join(_nome_etapa(o, p) for p in pend))}</p>' if pend else "")
     normas = f'<p class="nota">Normas: {esc(" · ".join(e.normas))}</p>' if e.normas else ""
     todos = (botao("Desmarcar todos", "etapa.todos", "btn btn-sec", codigo=e.codigo, feito="0") if feitos == len(e.checklist) and e.checklist
              else botao("Marcar todos", "etapa.todos", "btn btn-sec", codigo=e.codigo, feito="1"))
@@ -347,14 +357,27 @@ def _card_etapa(sis: Sistema, o: Obra, e, hoje) -> str:
   {cab}
   <div class="etapa-corpo">
     {aviso_pred}
-    <ul class="checklist">{itens}</ul>
-    <div class="linha-acoes">
-      {todos}
-      <form class="form-inline" data-action="etapa.novo_item" data-codigo="{esc(e.codigo)}">
-        <input id="novo-item-{esc(e.codigo)}" name="texto" placeholder="Novo item de checklist" aria-label="Novo item de checklist" maxlength="200" required>
-        <button class="btn" type="submit">Adicionar</button>
+    {_detalhes_etapa(o, e)}
+    <section class="etapa-sec">
+      <h3>Checklist de execução e qualidade <span class="contagem">{feitos}/{len(e.checklist)}</span></h3>
+      <ul class="checklist">{itens}</ul>
+      <div class="linha-acoes">
+        {todos}
+        <form class="form-inline" data-action="etapa.novo_item" data-codigo="{esc(e.codigo)}">
+          <input id="novo-item-{esc(e.codigo)}" name="texto" placeholder="Novo item de checklist" aria-label="Novo item de checklist" maxlength="200" required>
+          <button class="btn" type="submit">Adicionar</button>
+        </form>
+      </div>
+    </section>
+    <section class="etapa-sec">
+      <h3>Observações da etapa</h3>
+      <form class="form-obs" data-action="etapa.observacao" data-codigo="{esc(e.codigo)}">
+        <textarea id="obs-{esc(e.codigo)}" name="observacao" rows="3" maxlength="2000"
+          placeholder="Ex.: fornecedor, alteração de projeto, condição do terreno, combinado com o cliente…"
+          aria-label="Observações da etapa {esc(e.nome)}">{esc(e.observacao)}</textarea>
+        <button class="btn btn-sec" type="submit">Salvar observação</button>
       </form>
-    </div>
+    </section>
     <form class="form-grade form-etapa" data-action="etapa.salvar" data-codigo="{esc(e.codigo)}">
       <label>Início previsto<input id="ini-{esc(e.codigo)}" type="date" name="inicio_previsto" value="{esc(e.inicio_previsto)}"></label>
       <label>Fim previsto<input id="fim-{esc(e.codigo)}" type="date" name="fim_previsto" value="{esc(e.fim_previsto)}"></label>
@@ -364,6 +387,48 @@ def _card_etapa(sis: Sistema, o: Obra, e, hoje) -> str:
     {normas}
   </div>
 </article>"""
+
+
+def _nome_etapa(o: Obra, codigo: str) -> str:
+    try:
+        return o.etapa(codigo).nome
+    except ValueError:
+        return codigo
+
+
+def qtd_escalada(qtd: float, un: str, area: float) -> str:
+    """Quantitativo de referência (100 m²) ajustado à área da obra."""
+    v = qtd * (area or 100) / 100
+    if un in ("un", "vb", "mês"):
+        v = max(1, round(v))
+    elif v >= 10:
+        v = round(v)
+    else:
+        v = round(v, 1)
+    return _num(v)
+
+
+def _detalhes_etapa(o: Obra, e) -> str:
+    if not (e.descricao or e.servicos or e.equipe or e.atencao):
+        return ""
+    area = o.area_construida or 100
+    linhas = "".join(
+        f'<tr><td>{esc(s.get("servico", ""))}</td><td class="num">{qtd_escalada(float(s.get("qtd", 0)), s.get("un", ""), area)}</td>'
+        f'<td>{esc(s.get("un", ""))}</td></tr>'
+        for s in e.servicos
+    )
+    quant = (f'<div class="det-bloco det-largo"><h4>Serviços e quantitativos de referência · {_num(area)} m²</h4>'
+             f'<div class="tabela-wrap"><table class="tabela tabela-compacta"><tbody>{linhas}</tbody></table></div>'
+             f'<p class="nota">Estimativa para planejamento; confirme com o projeto e o orçamento executivo.</p></div>') if linhas else ""
+    seq = ", ".join(_nome_etapa(o, p) for p in e.predecessoras) or "início da obra"
+    prazo = f"{e.duracao_dias} dias úteis (típico)" if e.duracao_dias else "—"
+    equipe = (f'<div class="det-bloco"><h4>Equipe e prazo</h4><dl class="det-dl">'
+              f'<dt>Equipe</dt><dd>{esc(e.equipe or "—")}</dd><dt>Duração</dt><dd>{prazo}</dd>'
+              f'<dt>Começa após</dt><dd>{esc(seq)}</dd></dl></div>')
+    atencao = "".join(f"<li>{esc(a)}</li>" for a in e.atencao)
+    atencao = f'<div class="det-bloco det-atencao"><h4>Pontos de atenção</h4><ul>{atencao}</ul></div>' if atencao else ""
+    desc = f'<p class="etapa-desc">{esc(e.descricao)}</p>' if e.descricao else ""
+    return f'{desc}<div class="det-grade">{quant}{equipe}{atencao}</div>'
 
 
 # ======================================================================= compras
@@ -563,7 +628,8 @@ def render_obras(sis: Sistema) -> str:
       <label class="largo">Endereço<input id="o-end" name="endereco" maxlength="200"></label>
       <label>Início<input id="o-ini" name="inicio" type="date"></label>
       <label>Término previsto<input id="o-fim" name="fim_previsto" type="date"></label>
-      <label class="largo">Orçamento total (R$){campo_num("o-orc", "orcamento_total", placeholder="Ex.: 300.000,00")}</label>
+      <label>Área construída (m²){campo_num("o-area", "area_construida", texto="100", placeholder="100")}</label>
+      <label>Orçamento total (R$){campo_num("o-orc", "orcamento_total", placeholder="Ex.: 300.000,00")}</label>
       <button class="btn" type="submit">Criar obra com etapas padrão</button>
     </form>
     {'' if not sis.obras else '<p class="nota">' + botao("Criar também uma obra de exemplo", "obra.exemplo", "btn btn-link") + '</p>'}
@@ -586,6 +652,7 @@ def _form_editar(o: Obra) -> str:
   <label class="largo">Endereço<input id="e-end" name="endereco" value="{esc(o.endereco)}" maxlength="200"></label>
   <label>Início<input id="e-ini" name="inicio" type="date" value="{esc(o.inicio)}"></label>
   <label>Término previsto<input id="e-fim" name="fim_previsto" type="date" value="{esc(o.fim_previsto)}"></label>
-  <label class="largo">Orçamento total (R$){campo_num("e-orc", "orcamento_total", o.orcamento_total)}</label>
+  <label>Área construída (m²){campo_num("e-area", "area_construida", texto=_num(o.area_construida), placeholder="100")}</label>
+  <label>Orçamento total (R$){campo_num("e-orc", "orcamento_total", o.orcamento_total)}</label>
   <button class="btn" type="submit">Salvar dados</button>
 </form>"""
