@@ -13,6 +13,7 @@ from html import escape
 
 from . import analise as an
 from .etapas import CATEGORIAS, MODELO_VERSAO
+from .padroes import CODIGOS_PADRAO, PADROES, REFERENCIA, rotulo as rotulo_padrao
 from .modelos import (
     CATEGORIAS_COMPRA,
     PRIORIDADES,
@@ -130,7 +131,8 @@ def render_topo(sis: Sistema) -> str:
     if o:
         seletor = (f'<select id="sel-obra" class="sel-obra" data-action="obra.selecionar" name="id" aria-label="Obra ativa">'
                    + opcoes([x.id for x in _ordenadas(sis)], o.id, [x.nome for x in _ordenadas(sis)]) + "</select>")
-        meta = " · ".join(esc(x) for x in (o.cliente, o.endereco, f"{_num(o.area_construida)} m²") if x)
+        meta = " · ".join(esc(x) for x in (o.cliente, o.endereco, f"{_num(o.area_construida)} m²",
+                                          f"padrão {PADROES.get(o.padrao, {}).get('nome', o.padrao).lower()} · {an.moeda(o.valor_m2)}/m²") if x)
         datas = f"{an.data_br(o.inicio)} → {an.data_br(o.fim_previsto)}" if o.inicio else "sem cronograma"
         info = f'<p class="topo-meta">{meta}{" · " if meta else ""}{datas}{" · <b>exemplo</b>" if o.exemplo else ""}</p>'
     else:
@@ -270,6 +272,7 @@ def render_painel(sis: Sistema) -> str:
     {fases}
     <ul class="contagens">{st_et}</ul>
   </section>
+  {_bloco_padrao(o)}
   <section class="painel-bloco">
     <h2>Custos comprometidos por categoria</h2>
     {custos}
@@ -629,12 +632,13 @@ def render_obras(sis: Sistema) -> str:
       <label>Início<input id="o-ini" name="inicio" type="date"></label>
       <label>Término previsto<input id="o-fim" name="fim_previsto" type="date"></label>
       <label>Área construída (m²){campo_num("o-area", "area_construida", texto="100", placeholder="100")}</label>
-      <label>Orçamento total (R$){campo_num("o-orc", "orcamento_total", placeholder="Ex.: 300.000,00")}</label>
+      {_campos_padrao("o", "R1-N", None)}
+      <label class="largo">Orçamento total (R$){campo_num("o-orc", "orcamento_total", placeholder="Em branco = área × valor do m²")}</label>
       <button class="btn" type="submit">Criar obra com etapas padrão</button>
     </form>
     {'' if not sis.obras else '<p class="nota">' + botao("Criar também uma obra de exemplo", "obra.exemplo", "btn btn-link") + '</p>'}
   </section>
-  <section>
+  <section class="obras-sec">
     <h2>Obras cadastradas <span class="contagem">{len(sis.obras)}</span></h2>
     {''.join(lista) or '<p class="vazio-txt">Nenhuma obra cadastrada.</p>'}
     {editar}
@@ -653,6 +657,51 @@ def _form_editar(o: Obra) -> str:
   <label>Início<input id="e-ini" name="inicio" type="date" value="{esc(o.inicio)}"></label>
   <label>Término previsto<input id="e-fim" name="fim_previsto" type="date" value="{esc(o.fim_previsto)}"></label>
   <label>Área construída (m²){campo_num("e-area", "area_construida", texto=_num(o.area_construida), placeholder="100")}</label>
-  <label>Orçamento total (R$){campo_num("e-orc", "orcamento_total", o.orcamento_total)}</label>
+  {_campos_padrao("e", o.padrao, o.valor_m2)}
+  <label class="largo">Orçamento total (R$){campo_num("e-orc", "orcamento_total", o.orcamento_total)}</label>
   <button class="btn" type="submit">Salvar dados</button>
-</form>"""
+</form>
+{_bloco_padrao(o, com_acao=True)}"""
+
+
+def _campos_padrao(prefixo: str, padrao: str, valor_m2: float | None) -> str:
+    rotulos = [
+        f'{rotulo_padrao(c)} — {an.moeda(PADROES[c]["valor_m2"])}/m²' if c != "PERS" else "Personalizado (informe o valor)"
+        for c in CODIGOS_PADRAO
+    ]
+    return (
+        f'<label>Padrão construtivo<select id="{prefixo}-padrao" name="padrao">{opcoes(CODIGOS_PADRAO, padrao, rotulos)}</select></label>'
+        f'<label>Valor por m² (R$){campo_num(f"{prefixo}-vm2", "valor_m2", valor_m2, placeholder="Em branco = valor do padrão")}</label>'
+        f'<p class="nota largo">Referência: {esc(REFERENCIA)}. Troque o padrão para usar o valor dele, '
+        f'ou digite o CUB do seu estado / custo próprio no valor por m².</p>'
+    )
+
+
+def _bloco_padrao(o: Obra, com_acao: bool = False) -> str:
+    p = an.resumo_padrao(o)
+    dif = p["diferenca"]
+    if dif is None:
+        comp = '<p class="nota">Informe o orçamento para comparar com o padrão.</p>'
+    else:
+        cls = "neg" if dif < -0.2 else "atencao-txt" if abs(dif) > 0.1 else "ok-txt"
+        sentido = "acima" if dif > 0 else "abaixo"
+        comp = (f'<p class="padrao-comp {cls}">Orçamento {abs(dif):.0%} {sentido} do custo pelo padrão'
+                if abs(dif) >= 0.005 else '<p class="padrao-comp ok-txt">Orçamento igual ao custo pelo padrão') + "</p>"
+    origem = "valor próprio" if p["valor_proprio"] else "CUB de referência"
+    acao = ""
+    if com_acao and p["estimado"] and abs(p["estimado"] - p["orcado"]) >= 0.01:
+        acao = botao(f"Usar {an.moeda(p['estimado'])} como orçamento", "obra.orcamento_padrao", "btn btn-sec")
+    return f"""
+<section class="painel-bloco bloco-padrao">
+  <h2>Padrão construtivo</h2>
+  <dl class="det-dl padrao-dl">
+    <dt>Padrão</dt><dd><b>{esc(p['rotulo'])}</b></dd>
+    <dt>Valor do m²</dt><dd class="num-esq">{an.moeda(p['valor_m2'])}/m² <span class="nota">({origem})</span></dd>
+    <dt>Área</dt><dd class="num-esq">{_num(p['area'])} m²</dd>
+    <dt>Custo pelo padrão</dt><dd class="num-esq"><b>{an.moeda(p['estimado'])}</b></dd>
+    <dt>Orçamento da obra</dt><dd class="num-esq">{an.moeda(p['orcado'])}{f" · {an.moeda(p['orcado_m2'])}/m²" if p['orcado_m2'] else ""}</dd>
+  </dl>
+  {comp}
+  <p class="nota">O CUB não inclui terreno, projetos e taxas, fundações especiais, paisagismo e BDI da construtora (costumam somar 15% a 30%).</p>
+  {f'<div class="linha-acoes">{acao}</div>' if acao else ''}
+</section>"""

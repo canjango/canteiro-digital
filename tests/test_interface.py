@@ -143,7 +143,7 @@ def test_filtros_validados(sis):
     assert sis.despachar("ui.filtro", {"filtro_etapa": "EST", "filtro_compra": "todas"})["ok"]
     sis.despachar("ui.aba", {"aba": "compras"})
     html = render(sis)
-    assert "Concreto usinado fck 30" in html and "Bloco cerâmico" not in html
+    assert "Concreto usinado fck 25 MPa (laje e cintas)" in html and "Bloco cerâmico" not in html
 
 
 def test_dois_servidores_nao_compartilham_estado(tmp_path):

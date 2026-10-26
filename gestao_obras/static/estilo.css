@@ -149,6 +149,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tabela th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tinta-2); }
 .num { text-align: right !important; font-family: var(--fonte-dado); font-variant-numeric: tabular-nums; }
 .neg { color: var(--critico); }
+.ok-txt { color: var(--ok); }
+.atencao-txt { color: var(--atencao); }
+.bloco-padrao { display: flex; flex-direction: column; gap: 8px; }
+.bloco-padrao h2 { margin-bottom: 0; }
+.padrao-dl dd b { font-weight: 700; }
+.num-esq { font-variant-numeric: tabular-nums; }
+.padrao-comp { margin: 0; font-weight: 600; }
+.form-grade .nota.largo { grid-column: 1 / -1; }
 .forte { font-weight: 600; color: var(--ok); }
 .tabela tfoot td { font-weight: 700; border-top: 2px solid var(--tinta); border-bottom: 0; }
 .lb-val small { display: block; color: var(--tinta-2); font-size: 0.72rem; }

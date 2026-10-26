@@ -150,6 +150,28 @@ def custos_por_categoria(obra: Obra) -> "OrderedDict[str, float]":
     return res
 
 
+def resumo_padrao(obra: Obra) -> dict:
+    """Compara o orçamento da obra com o custo pelo padrão construtivo (área × R$/m²)."""
+    from .padroes import REFERENCIA, rotulo, valor_referencia
+
+    estimado = round(obra.area_construida * obra.valor_m2, 2)
+    orcado = obra.orcamento_total
+    ref = valor_referencia(obra.padrao)
+    return {
+        "padrao": obra.padrao,
+        "rotulo": rotulo(obra.padrao),
+        "valor_m2": obra.valor_m2,
+        "valor_referencia": ref,
+        "valor_proprio": obra.padrao == "PERS" or abs(obra.valor_m2 - ref) >= 0.005,
+        "referencia": REFERENCIA,
+        "area": obra.area_construida,
+        "estimado": estimado,
+        "orcado": orcado,
+        "orcado_m2": round(orcado / obra.area_construida, 2) if obra.area_construida else None,
+        "diferenca": (orcado / estimado - 1) if estimado and orcado else None,
+    }
+
+
 def resumo_financeiro(obra: Obra) -> dict:
     comprometido = sum(c.valor_total for c in obra.compras if c.status in COMPROMETIDAS)
     realizado = sum(c.valor_total for c in obra.compras if c.status == "Entregue")
@@ -249,6 +271,11 @@ def alertas(obra: Obra, hoje: date | None = None) -> list[Alerta]:
             out.append(Alerta("critico", f"Estouro de orçamento: {linha['nome']}",
                               f"Comprometido {moeda(linha['comprometido'])} de {moeda(linha['orcado'])}", "compras"))
 
+    pad = resumo_padrao(obra)
+    if pad["diferenca"] is not None and pad["diferenca"] < -0.2:
+        out.append(Alerta("atencao", f"Orçamento {abs(pad['diferenca']):.0%} abaixo do padrão {pad['rotulo']}",
+                          f"{moeda(pad['orcado_m2'])}/m² contra {moeda(pad['valor_m2'])}/m² de referência", "obras"))
+
     indice = idp(obra, hoje)
     if indice is not None and indice < 0.9:
         out.append(Alerta("critico" if indice < 0.75 else "atencao", "Obra abaixo do previsto",
@@ -265,6 +292,7 @@ def resumo(obra: Obra, hoje: date | None = None) -> dict:
         "progresso_previsto": progresso_previsto(obra, hoje),
         "idp": idp(obra, hoje),
         "financeiro": resumo_financeiro(obra),
+        "padrao": resumo_padrao(obra),
         "fases": por_categoria_etapa(obra),
         "status_etapas": contagem_status_etapas(obra, hoje),
         "compras_status": contagem(obra.compras, "status", STATUS_COMPRA),

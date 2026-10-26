@@ -10,6 +10,7 @@ from datetime import date, timedelta
 import copy
 
 from .etapas import CAMPOS_DESCRITIVOS, ETAPAS_PADRAO, MODELO_VERSAO
+from .padroes import CODIGOS_PADRAO, PADRAO_INICIAL, valor_referencia
 from .modelos import (
     CATEGORIAS_COMPRA,
     PRIORIDADES,
@@ -57,6 +58,8 @@ def criar_obra(
     orcamento_total=0,
     exemplo: bool = False,
     area_construida=100,
+    padrao: str = PADRAO_INICIAL,
+    valor_m2="",
 ) -> Obra:
     """Cria a obra com todas as etapas padrão, distribuindo o orçamento pelo
     peso de cada etapa e o cronograma pela duração típica e pela sequência."""
@@ -64,8 +67,10 @@ def criar_obra(
     d_fim = ler_data(fim_previsto)
     if d_ini and d_fim and d_fim <= d_ini:
         raise ValidacaoErro("A data de término deve ser posterior ao início")
-    orc = ler_numero(orcamento_total, "Orçamento")
     area = _area(area_construida)
+    padrao, vm2 = resolver_padrao(padrao, valor_m2)
+    # sem orçamento informado, estima pela área × valor do m² do padrão
+    orc = ler_numero(orcamento_total, "Orçamento") if str(orcamento_total).strip() not in ("", "0") else round(area * vm2, 2)
 
     obra = Obra(
         nome=_texto(nome, "o nome da obra"),
@@ -77,6 +82,8 @@ def criar_obra(
         orcamento_total=orc,
         exemplo=exemplo,
         area_construida=area,
+        padrao=padrao,
+        valor_m2=vm2,
         modelo_etapas=MODELO_VERSAO,
     )
     obra.etapas = [_etapa_do_catalogo(e, orc) for e in ETAPAS_PADRAO]
@@ -90,6 +97,44 @@ def _area(valor) -> float:
     if not 10 <= area <= 5000:
         raise ValidacaoErro("Área construída deve ficar entre 10 e 5.000 m²")
     return area
+
+
+def resolver_padrao(padrao: str, valor_m2="", anterior: tuple[str, float] | None = None) -> tuple[str, float]:
+    """Define padrão e R$/m².
+
+    - valor informado e diferente do que estava gravado: vale o valor informado
+      (o usuário digitou o CUB do seu estado ou um custo próprio);
+    - caso contrário, usa o valor de referência do padrão escolhido.
+    O padrão "Personalizado" exige um valor."""
+    padrao = padrao or PADRAO_INICIAL
+    if padrao not in CODIGOS_PADRAO:
+        raise ValidacaoErro(f"Padrão construtivo inválido: {padrao!r}")
+    informado = ler_numero(valor_m2, "Valor por m²") if str(valor_m2).strip() else 0.0
+    if informado and not (100 <= informado <= 50_000):
+        raise ValidacaoErro("Valor por m² deve ficar entre R$ 100 e R$ 50.000")
+    mudou_valor = informado and (anterior is None or abs(informado - anterior[1]) >= 0.005)
+    if mudou_valor:
+        return padrao, round(informado, 2)
+    if padrao == "PERS":
+        atual = informado or (anterior[1] if anterior else 0.0)
+        if not atual:
+            raise ValidacaoErro("Informe o valor por m² do padrão personalizado")
+        return padrao, round(atual, 2)
+    return padrao, valor_referencia(padrao)
+
+
+def custo_estimado(obra: Obra) -> float:
+    """Custo pela área × valor do m² do padrão construtivo."""
+    return round(obra.area_construida * obra.valor_m2, 2)
+
+
+def redistribuir_orcamento(obra: Obra, novo_total: float) -> None:
+    """Muda o orçamento total; etapas que estavam na proporção do peso
+    acompanham, etapas ajustadas à mão são mantidas."""
+    for e in obra.etapas:
+        if abs(e.orcamento - round(obra.orcamento_total * e.peso / 100, 2)) < 0.01:
+            e.orcamento = round(novo_total * e.peso / 100, 2)
+    obra.orcamento_total = round(novo_total, 2)
 
 
 def _etapa_do_catalogo(e: dict, orcamento_total: float) -> Etapa:

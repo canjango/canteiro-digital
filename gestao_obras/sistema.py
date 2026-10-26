@@ -143,7 +143,8 @@ class Sistema:
         o = sv.criar_obra(
             d.get("nome", ""), d.get("cliente", ""), d.get("endereco", ""),
             d.get("responsavel_tecnico", ""), d.get("inicio", ""), d.get("fim_previsto", ""),
-            d.get("orcamento_total", 0), area_construida=d.get("area_construida", 100),
+            d.get("orcamento_total", ""), area_construida=d.get("area_construida", 100),
+            padrao=d.get("padrao", "R1-N"), valor_m2=d.get("valor_m2", ""),
         )
         self.obras[o.id] = o
         self.ui.update(obra=o.id, aba="etapas", abertas=[o.etapas[0].codigo], filtro_etapa="")
@@ -164,19 +165,27 @@ class Sistema:
         if not nome:
             raise ValidacaoErro("Informe o nome da obra")
         novo_orc = sv.ler_numero(d.get("orcamento_total", o.orcamento_total), "Orçamento")
+        area = sv._area(d.get("area_construida", o.area_construida))
+        padrao, vm2 = sv.resolver_padrao(d.get("padrao", o.padrao), d.get("valor_m2", ""), (o.padrao, o.valor_m2))
         if novo_orc != o.orcamento_total:
-            # redistribui pelos pesos apenas as etapas que mantinham a proporção original
-            for e in o.etapas:
-                if abs(e.orcamento - round(o.orcamento_total * e.peso / 100, 2)) < 0.01:
-                    e.orcamento = round(novo_orc * e.peso / 100, 2)
-        o.area_construida = sv._area(d.get("area_construida", o.area_construida))
-        o.nome, o.orcamento_total = nome, novo_orc
+            sv.redistribuir_orcamento(o, novo_orc)
+        o.area_construida, o.padrao, o.valor_m2 = area, padrao, vm2
+        o.nome = nome
         o.cliente = " ".join(str(d.get("cliente", "")).split())
         o.endereco = " ".join(str(d.get("endereco", "")).split())
         o.responsavel_tecnico = " ".join(str(d.get("responsavel_tecnico", "")).split())
         o.inicio = ini.isoformat() if ini else ""
         o.fim_previsto = fim.isoformat() if fim else ""
         return self._mudou("Dados da obra salvos")
+
+    def _a_obra_orcamento_padrao(self, d):
+        o = self._obra_ativa()
+        estimado = sv.custo_estimado(o)
+        if estimado <= 0:
+            raise ValidacaoErro("Defina área e valor por m² antes de calcular")
+        sv.redistribuir_orcamento(o, estimado)
+        from .analise import moeda
+        return self._mudou(f"Orçamento atualizado para {moeda(estimado)} (área × valor do m²)")
 
     def _a_obra_atualizar_modelo(self, d):
         o = self._obra_ativa()
@@ -281,13 +290,14 @@ class Sistema:
 # ================================================================ exemplo
 def obra_exemplo(hoje: date) -> Obra:
     """Obra fictícia, com datas relativas a hoje, para demonstrar o sistema."""
-    ini = hoje - timedelta(days=150)
-    fim = hoje + timedelta(days=190)
+    ini = hoje - timedelta(days=95)
+    fim = hoje + timedelta(days=150)
     o = sv.criar_obra(
         "Residência unifamiliar (exemplo)", "Cliente exemplo", "Rua Exemplo, 100",
-        "Responsável técnico", ini.isoformat(), fim.isoformat(), 850000, exemplo=True,
+        "Responsável técnico", ini.isoformat(), fim.isoformat(), 285000, exemplo=True,
+        area_construida=100, padrao="R1-N",
     )
-    feito = {"PRE": 12, "TER": 8, "FUN": 11, "EST": 6, "ALV": 4}
+    feito = {"PRE": 12, "TER": 8, "FUN": 11, "EST": 8, "ALV": 8}
     for cod, n in feito.items():
         etapa = o.etapa(cod)
         for item in etapa.checklist[:n]:
@@ -308,14 +318,14 @@ def obra_exemplo(hoje: date) -> Obra:
             sv.mudar_status_compra(o, c.id, s, hoje)
         return c
 
-    compra("Concreto usinado fck 25 MPa", "FUN", "Material", 38, "m³", 520, "Concreteira", "Entregue", -95)
-    compra("Aço CA-50 10 mm", "EST", "Material", 2.4, "t", 7800, "Distribuidora de aço", "Entregue", -60)
-    compra("Concreto usinado fck 30 MPa (lajes)", "EST", "Material", 46, "m³", 560, "Concreteira", "Pedido feito", 4, "Alta")
-    compra("Locação de escoramento metálico", "EST", "Equipamento/locação", 2, "mês", 3200, "Locadora", "Entregue", -40)
-    compra("Bloco cerâmico 14x19x29", "ALV", "Material", 9500, "un", 2.35, "Cerâmica", "Aprovada", 6, "Alta")
-    compra("Cimento CP-II 50 kg", "ALV", "Material", 180, "sc", 38.9, "", "Em cotação", -3, "Alta")
-    compra("Empreitada de alvenaria (mão de obra)", "ALV", "Mão de obra", 420, "m²", 48, "Equipe de alvenaria", "Aprovada", 10)
-    compra("Tubos e conexões PVC esgoto", "HID", "Material", 1, "vb", 6800, "", "Solicitada", 25)
+    compra("Concreto usinado fck 25 MPa", "FUN", "Material", 9, "m³", 520, "Concreteira", "Entregue", -95)
+    compra("Aço CA-50/CA-60", "EST", "Material", 0.75, "t", 7800, "Distribuidora de aço", "Entregue", -60)
+    compra("Concreto usinado fck 25 MPa (laje e cintas)", "EST", "Material", 11, "m³", 540, "Concreteira", "Pedido feito", 4, "Alta")
+    compra("Locação de escoramento metálico", "EST", "Equipamento/locação", 1, "mês", 2800, "Locadora", "Entregue", -40)
+    compra("Bloco cerâmico 14x19x29", "ALV", "Material", 4800, "un", 2.35, "Cerâmica", "Aprovada", 6, "Alta")
+    compra("Cimento CP-II 50 kg", "ALV", "Material", 60, "sc", 38.9, "", "Em cotação", -3, "Alta")
+    compra("Empreitada de alvenaria (mão de obra)", "ALV", "Mão de obra", 270, "m²", 40, "Equipe de alvenaria", "Aprovada", 10)
+    compra("Tubos e conexões PVC (água e esgoto)", "HID", "Material", 1, "vb", 4200, "", "Solicitada", 25)
     compra("Telha cerâmica e madeiramento", "COB", "Material", 1, "vb", 0, "", "Solicitada", 40)
 
     t1 = sv.adicionar_tarefa(o, "Conferir armaduras da laje do pavimento superior", "EST", "Engenheiro de campo",

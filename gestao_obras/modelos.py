@@ -168,6 +168,8 @@ class Obra:
     tarefas: list[Tarefa] = field(default_factory=list)
     exemplo: bool = False
     area_construida: float = 100.0  # m²; escala os quantitativos de referência
+    padrao: str = "R1-N"  # padrão construtivo (ver padroes.py)
+    valor_m2: float = 2690.33  # R$/m² do padrão (CUB ou valor próprio)
     modelo_etapas: int = 1  # versão do catálogo de etapas aplicada (1 = obras antigas)
     id: str = field(default_factory=lambda: novo_id("obra"))
 
