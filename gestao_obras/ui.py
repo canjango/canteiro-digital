@@ -195,16 +195,17 @@ def render_painel(sis: Sistema) -> str:
     <span class="kpi-val">{idp_txt}</span>
     <span class="kpi-sub">{'no prazo' if idp_cls == 'ok' else 'atenção ao ritmo' if idp_cls == 'atencao' else 'atrasada' if idp_cls == 'critico' else 'sem previsão ainda'}</span>
   </div>
+  <div class="kpi">
+    <span class="kpi-rot">Executado (medição)</span>
+    <span class="kpi-val">{an.moeda(fin['executado'])}</span>
+    {barra(fin['executado_pct'] or 0)}
+    <span class="kpi-sub">{pct(fin['executado_pct'])} do orçado · a executar {an.moeda(fin['a_executar'])}</span>
+  </div>
   <div class="kpi kpi-{uso_cls}">
-    <span class="kpi-rot">Comprometido</span>
+    <span class="kpi-rot">Comprometido em compras</span>
     <span class="kpi-val">{an.moeda(fin['comprometido'])}</span>
     {barra(uso or 0, 'barra-fin')}
-    <span class="kpi-sub">{pct(uso)} de {an.moeda(fin['orcado'])}</span>
-  </div>
-  <div class="kpi">
-    <span class="kpi-rot">Entregue (realizado)</span>
-    <span class="kpi-val">{an.moeda(fin['realizado'])}</span>
-    <span class="kpi-sub">em aberto: {an.moeda(fin['em_aberto'])}</span>
+    <span class="kpi-sub">{pct(uso)} de {an.moeda(fin['orcado'])} · entregue {an.moeda(fin['realizado'])}</span>
   </div>
 </section>"""
 
@@ -222,7 +223,7 @@ def render_painel(sis: Sistema) -> str:
 
     fases = "".join(
         f'<div class="linha-barra"><span class="lb-rot">{esc(cat)}</span>{barra(g["progresso"])}'
-        f'<span class="lb-val">{pct(g["progresso"])}</span></div>'
+        f'<span class="lb-val">{pct(g["progresso"])}<small>{an.moeda(g["executado"])}</small></span></div>'
         for cat, g in r["fases"].items()
     )
     st_et = "".join(f'<li>{pill(k)}<b>{v}</b></li>' for k, v in r["status_etapas"].items() if v)
@@ -238,11 +239,23 @@ def render_painel(sis: Sistema) -> str:
     tarefas = "".join(f'<li>{pill(k)}<b>{v}</b></li>' for k, v in r["tarefas_status"].items() if v) or "<li>Nenhuma tarefa</li>"
     compras = "".join(f'<li>{pill(k)}<b>{v}</b></li>' for k, v in r["compras_status"].items() if v) or "<li>Nenhuma compra</li>"
 
+    custos_etapa = an.custos_por_etapa(o)
     linhas = "".join(
         f'<tr><td><span class="cod">{esc(l["codigo"])}</span> {esc(l["nome"])}</td>'
-        f'<td class="num">{an.moeda(l["orcado"])}</td><td class="num">{an.moeda(l["comprometido"])}</td>'
-        f'<td class="num {"neg" if l["saldo"] < 0 else ""}">{an.moeda(l["saldo"])}</td><td class="num">{pct(l["uso"])}</td></tr>'
-        for l in an.custos_por_etapa(o)
+        f'<td class="num">{pct(l["progresso"])}</td>'
+        f'<td class="num">{an.moeda(l["orcado"])}</td>'
+        f'<td class="num{" forte" if l["executado"] else ""}">{an.moeda(l["executado"])}</td>'
+        f'<td class="num">{an.moeda(l["a_executar"])}</td>'
+        f'<td class="num">{an.moeda(l["comprometido"])}</td>'
+        f'<td class="num {"neg" if l["saldo"] < 0 else ""}">{an.moeda(l["saldo"])}</td></tr>'
+        for l in custos_etapa
+    )
+    tot = {k: sum(l[k] for l in custos_etapa) for k in ("orcado", "executado", "a_executar", "comprometido", "saldo")}
+    total = (
+        f'<tr><td>Total da obra</td><td class="num">{pct(tot["executado"] / tot["orcado"] if tot["orcado"] else None)}</td>'
+        f'<td class="num">{an.moeda(tot["orcado"])}</td><td class="num">{an.moeda(tot["executado"])}</td>'
+        f'<td class="num">{an.moeda(tot["a_executar"])}</td><td class="num">{an.moeda(tot["comprometido"])}</td>'
+        f'<td class="num {"neg" if tot["saldo"] < 0 else ""}">{an.moeda(tot["saldo"])}</td></tr>'
     )
 
     return f"""
@@ -268,10 +281,12 @@ def render_painel(sis: Sistema) -> str:
   </section>
 </div>
 <section class="painel-bloco">
-  <h2>Orçado × comprometido por etapa</h2>
+  <h2>Medição físico-financeira por etapa</h2>
+  <p class="nota">Executado = orçado da etapa × avanço do checklist. Comprometido = compras aprovadas, pedidas ou entregues. Saldo = orçado − comprometido.</p>
   <div class="tabela-wrap"><table class="tabela">
-    <thead><tr><th>Etapa</th><th class="num">Orçado</th><th class="num">Comprometido</th><th class="num">Saldo</th><th class="num">Uso</th></tr></thead>
+    <thead><tr><th>Etapa</th><th class="num">Avanço</th><th class="num">Orçado</th><th class="num">Executado</th><th class="num">A executar</th><th class="num">Comprometido</th><th class="num">Saldo</th></tr></thead>
     <tbody>{linhas}</tbody>
+    <tfoot>{total}</tfoot>
   </table></div>
 </section>"""
 

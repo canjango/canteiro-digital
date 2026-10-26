@@ -238,3 +238,19 @@ def test_numero_formato_brasileiro():
     assert ler_numero("2.4", "v") == 2.4
     assert ler_numero("39,9", "v") == 39.9
     assert ler_numero("", "v") == 0
+
+
+def test_medicao_valor_executado_pelo_checklist(obra):
+    """Etapa concluída soma o valor orçado como executado, mesmo sem compras lançadas."""
+    sv.marcar_etapa(obra, "PRE", True, HOJE)        # 100% de R$ 30.000
+    fun = obra.etapa("FUN")                          # 2 de 7 itens de R$ 80.000
+    for i in fun.checklist[:2]:
+        sv.alternar_item_etapa(obra, "FUN", i.id, HOJE)
+    linhas = {l["codigo"]: l for l in an.custos_por_etapa(obra)}
+    assert linhas["PRE"]["executado"] == 30_000 and linhas["PRE"]["a_executar"] == 0
+    assert linhas["FUN"]["executado"] == pytest.approx(80_000 * 2 / 7, abs=0.01)
+    fin = an.resumo_financeiro(obra)
+    assert fin["executado"] == pytest.approx(30_000 + 80_000 * 2 / 7, abs=0.01)
+    assert fin["executado"] + fin["a_executar"] == pytest.approx(1_000_000, abs=0.05)
+    fases = an.por_categoria_etapa(obra)
+    assert fases["Preparação"]["executado"] == pytest.approx(30_000)

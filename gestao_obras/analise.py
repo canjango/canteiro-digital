@@ -101,12 +101,16 @@ def idp(obra: Obra, hoje: date | None = None) -> float | None:
 
 def por_categoria_etapa(obra: Obra) -> "OrderedDict[str, dict]":
     """Avanço agrupado por fase macro (categoria)."""
-    res: OrderedDict[str, dict] = OrderedDict((c, {"peso": 0.0, "feito": 0.0, "etapas": 0}) for c in CATEGORIAS)
+    novo = lambda: {"peso": 0.0, "feito": 0.0, "etapas": 0, "orcado": 0.0, "executado": 0.0}  # noqa: E731
+    res: OrderedDict[str, dict] = OrderedDict((c, novo()) for c in CATEGORIAS)
     for e in obra.etapas:
-        g = res.setdefault(e.categoria, {"peso": 0.0, "feito": 0.0, "etapas": 0})
+        g = res.setdefault(e.categoria, novo())
+        p = progresso_etapa(e)
         g["peso"] += e.peso
-        g["feito"] += e.peso * progresso_etapa(e)
+        g["feito"] += e.peso * p
         g["etapas"] += 1
+        g["orcado"] += e.orcamento
+        g["executado"] += e.orcamento * p
     for g in res.values():
         g["progresso"] = g["feito"] / g["peso"] if g["peso"] else 0.0
     return OrderedDict((k, v) for k, v in res.items() if v["etapas"])
@@ -119,11 +123,16 @@ def custos_por_etapa(obra: Obra) -> list[dict]:
         compras = [c for c in obra.compras if c.etapa == e.codigo]
         comprometido = sum(c.valor_total for c in compras if c.status in COMPROMETIDAS)
         realizado = sum(c.valor_total for c in compras if c.status == "Entregue")
+        prog = progresso_etapa(e)
+        executado = round(e.orcamento * prog, 2)  # medição: orçado × avanço físico da etapa
         linhas.append(
             {
                 "codigo": e.codigo,
                 "nome": e.nome,
+                "progresso": prog,
                 "orcado": e.orcamento,
+                "executado": executado,
+                "a_executar": round(e.orcamento - executado, 2),
                 "comprometido": round(comprometido, 2),
                 "realizado": round(realizado, 2),
                 "saldo": round(e.orcamento - comprometido, 2),
@@ -146,8 +155,14 @@ def resumo_financeiro(obra: Obra) -> dict:
     realizado = sum(c.valor_total for c in obra.compras if c.status == "Entregue")
     em_aberto = sum(c.valor_total for c in obra.compras if c.status in ("Solicitada", "Em cotação"))
     orc = obra.orcamento_total
+    executado = sum(e.orcamento * progresso_etapa(e) for e in obra.etapas)
+    orcado_etapas = sum(e.orcamento for e in obra.etapas)
     return {
         "orcado": orc,
+        "orcado_etapas": round(orcado_etapas, 2),
+        "executado": round(executado, 2),
+        "a_executar": round(orcado_etapas - executado, 2),
+        "executado_pct": (executado / orcado_etapas) if orcado_etapas else None,
         "comprometido": round(comprometido, 2),
         "realizado": round(realizado, 2),
         "em_aberto": round(em_aberto, 2),

@@ -149,6 +149,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tabela th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tinta-2); }
 .num { text-align: right !important; font-family: var(--fonte-dado); font-variant-numeric: tabular-nums; }
 .neg { color: var(--critico); }
+.forte { font-weight: 600; color: var(--ok); }
+.tabela tfoot td { font-weight: 700; border-top: 2px solid var(--tinta); border-bottom: 0; }
+.lb-val small { display: block; color: var(--tinta-2); font-size: 0.72rem; }
 .cod { font-family: var(--fonte-dado); font-size: 0.75rem; background: var(--superficie-2); padding: 1px 5px; border-radius: 3px; color: var(--tinta-2); }
 
 /* ----- etapas */
