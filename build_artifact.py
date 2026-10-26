@@ -76,11 +76,14 @@ def montar_site() -> str:
     corpo = montar().replace(
         '<script src="' + cdn + 'pyodide.asm.js"></script>\n', ""
     ).replace("<script>\n", f'<script>window.PYODIDE_CDN = "{cdn}";</script>\n<script>\n', 1)
+    # título, fontes e estilo vão para o <head>; o restante para o <body>
+    corte = corpo.index("</style>") + len("</style>")
+    cabeca, resto = corpo[:corte], corpo[corte:]
     return (
         '<!doctype html>\n<html lang="pt-BR"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
         '<meta name="color-scheme" content="light dark">\n'
-        "</head><body>\n" + corpo + "\n</body></html>\n"
+        + cabeca + "\n</head><body>" + resto + "\n</body></html>\n"
     )
 
 
