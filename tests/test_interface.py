@@ -151,3 +151,17 @@ def test_dois_servidores_nao_compartilham_estado(tmp_path):
     b = criar_app(tmp_path / "b.json", Sistema(hoje=HOJE)).test_client()
     a.post("/api/acao", json={"acao": "obra.criar", "dados": {"nome": "Só no A"}})
     assert b.get("/api/obras").get_json() == []
+
+
+def test_orcamento_digitado_com_ponto_de_milhar(sis):
+    o = sis.obra
+    d = {"nome": o.nome, "cliente": "", "endereco": "", "responsavel_tecnico": "",
+         "inicio": o.inicio, "fim_previsto": o.fim_previsto, "orcamento_total": "300.000"}
+    assert sis.despachar("obra.editar", d)["ok"]
+    assert o.orcamento_total == 300000
+    sis.despachar("ui.aba", {"aba": "obras"})
+    assert 'value="300.000,00"' in render(sis)  # campo mostra o valor no formato brasileiro
+    # salvar de novo sem mexer no campo mantém o valor
+    d["orcamento_total"] = "300.000,00"
+    assert sis.despachar("obra.editar", d)["ok"] and o.orcamento_total == 300000
+    assert 'type="number"' not in render(sis)

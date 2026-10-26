@@ -53,6 +53,24 @@ def opcoes(valores, selecionado="", rotulos=None) -> str:
     return "".join(out)
 
 
+def valor_br(v: float | None, casas: int = 2) -> str:
+    """Número no formato brasileiro para preencher campos: 300000 -> '300.000,00'."""
+    if not v:
+        return ""
+    t = f"{v:,.{casas}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return t
+
+
+def campo_num(id_: str, nome: str, valor: float | None = None, placeholder: str = "0,00",
+              obrigatorio: bool = False, rotulo: str | None = None) -> str:
+    """Campo numérico em texto com teclado decimal: aceita 300.000 / 300.000,00 / 300000."""
+    v = valor_br(valor) if valor is not None else ""
+    req = " required" if obrigatorio else ""
+    aria = f' aria-label="{esc(rotulo)}"' if rotulo else ""
+    return (f'<input id="{esc(id_)}" name="{nome}" type="text" inputmode="decimal" autocomplete="off" '
+            f'value="{esc(v)}" placeholder="{esc(placeholder)}"{req}{aria}>')
+
+
 def pct(x: float | None) -> str:
     return "—" if x is None else f"{x * 100:.0f}%"
 
@@ -325,7 +343,7 @@ def _card_etapa(sis: Sistema, o: Obra, e, hoje) -> str:
     <form class="form-grade form-etapa" data-action="etapa.salvar" data-codigo="{esc(e.codigo)}">
       <label>Início previsto<input id="ini-{esc(e.codigo)}" type="date" name="inicio_previsto" value="{esc(e.inicio_previsto)}"></label>
       <label>Fim previsto<input id="fim-{esc(e.codigo)}" type="date" name="fim_previsto" value="{esc(e.fim_previsto)}"></label>
-      <label>Orçamento (R$)<input id="orc-{esc(e.codigo)}" type="number" step="0.01" min="0" name="orcamento" value="{e.orcamento:.2f}"></label>
+      <label>Orçamento (R$){campo_num(f"orc-{e.codigo}", "orcamento", e.orcamento)}</label>
       <button class="btn btn-sec" type="submit">Salvar etapa</button>
     </form>
     {normas}
@@ -384,9 +402,9 @@ def _form_compra(o: Obra) -> str:
   <label class="largo">Descrição<input id="c-desc" name="descricao" required maxlength="200" placeholder="Ex.: Cimento CP-II 50 kg"></label>
   <label>Etapa<select id="c-etapa" name="etapa">{opcoes([e.codigo for e in o.etapas], "", [f"{e.codigo} · {e.nome}" for e in o.etapas])}</select></label>
   <label>Categoria<select id="c-cat" name="categoria">{opcoes(CATEGORIAS_COMPRA)}</select></label>
-  <label>Quantidade<input id="c-qtd" name="quantidade" type="number" step="any" min="0" value="1" required></label>
+  <label>Quantidade<input id="c-qtd" name="quantidade" type="text" inputmode="decimal" autocomplete="off" value="1" required></label>
   <label>Unidade<select id="c-un" name="unidade">{opcoes(UNIDADES)}</select></label>
-  <label>Valor unitário (R$)<input id="c-vu" name="valor_unitario" type="number" step="0.01" min="0" placeholder="0,00"></label>
+  <label>Valor unitário (R$){campo_num("c-vu", "valor_unitario")}</label>
   <label>Fornecedor<input id="c-forn" name="fornecedor" maxlength="200"></label>
   <label>Prioridade<select id="c-prio" name="prioridade">{opcoes(PRIORIDADES, "Média")}</select></label>
   <label>Precisa chegar até<input id="c-data" name="data_necessidade" type="date"></label>
@@ -407,7 +425,7 @@ def _card_compra(o: Obra, c, atrasada: bool) -> str:
     if c.status in ("Solicitada", "Em cotação", "Aprovada"):
         editar_preco = f"""
 <form class="form-inline" data-action="compra.preco" data-id="{esc(c.id)}">
-  <input id="vu-{esc(c.id)}" name="valor_unitario" type="number" step="0.01" min="0" value="{c.valor_unitario:.2f}" aria-label="Valor unitário">
+  {campo_num(f"vu-{c.id}", "valor_unitario", c.valor_unitario, rotulo="Valor unitário")}
   <input id="fo-{esc(c.id)}" name="fornecedor" value="{esc(c.fornecedor)}" placeholder="Fornecedor" aria-label="Fornecedor" maxlength="200">
   <button class="btn btn-sec" type="submit">Salvar cotação</button>
 </form>"""
@@ -530,7 +548,7 @@ def render_obras(sis: Sistema) -> str:
       <label class="largo">Endereço<input id="o-end" name="endereco" maxlength="200"></label>
       <label>Início<input id="o-ini" name="inicio" type="date"></label>
       <label>Término previsto<input id="o-fim" name="fim_previsto" type="date"></label>
-      <label class="largo">Orçamento total (R$)<input id="o-orc" name="orcamento_total" type="number" step="0.01" min="0" placeholder="0,00"></label>
+      <label class="largo">Orçamento total (R$){campo_num("o-orc", "orcamento_total", placeholder="Ex.: 300.000,00")}</label>
       <button class="btn" type="submit">Criar obra com etapas padrão</button>
     </form>
     {'' if not sis.obras else '<p class="nota">' + botao("Criar também uma obra de exemplo", "obra.exemplo", "btn btn-link") + '</p>'}
@@ -553,6 +571,6 @@ def _form_editar(o: Obra) -> str:
   <label class="largo">Endereço<input id="e-end" name="endereco" value="{esc(o.endereco)}" maxlength="200"></label>
   <label>Início<input id="e-ini" name="inicio" type="date" value="{esc(o.inicio)}"></label>
   <label>Término previsto<input id="e-fim" name="fim_previsto" type="date" value="{esc(o.fim_previsto)}"></label>
-  <label class="largo">Orçamento total (R$)<input id="e-orc" name="orcamento_total" type="number" step="0.01" min="0" value="{o.orcamento_total:.2f}"></label>
+  <label class="largo">Orçamento total (R$){campo_num("e-orc", "orcamento_total", o.orcamento_total)}</label>
   <button class="btn" type="submit">Salvar dados</button>
 </form>"""

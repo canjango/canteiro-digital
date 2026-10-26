@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import asdict, dataclass, field, fields
 from datetime import date
@@ -47,9 +48,11 @@ def ler_data(valor) -> date | None:
 def ler_numero(valor, nome: str, minimo: float = 0.0) -> float:
     if valor in (None, ""):
         return 0.0
-    texto = str(valor).strip().replace("R$", "").replace(" ", "")
+    texto = str(valor).strip().replace("R$", "").replace(" ", "").replace("\u00a0", "")
     if "," in texto:  # formato brasileiro: 1.234,56
         texto = texto.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"-?\d{1,3}(\.\d{3})+", texto):  # 300.000 = trezentos mil
+        texto = texto.replace(".", "")
     try:
         n = float(texto)
     except ValueError as exc:

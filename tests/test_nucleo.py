@@ -229,6 +229,12 @@ def test_moeda():
 def test_numero_formato_brasileiro():
     from gestao_obras.modelos import ler_numero
     assert ler_numero("1.234,56", "v") == 1234.56
-    assert ler_numero("R$ 2.500", "v") == 2.5  # sem vírgula, ponto é decimal (padrão dos campos numéricos)
+    assert ler_numero("R$ 2.500", "v") == 2500
+    assert ler_numero("300.000", "v") == 300000  # bug relatado: virava R$ 300,00
+    assert ler_numero("300.000,00", "v") == 300000
+    assert ler_numero("1.250.000", "v") == 1250000
+    assert ler_numero("300000", "v") == 300000
+    assert ler_numero("39.90", "v") == 39.9  # ponto seguido de 2 casas continua decimal
+    assert ler_numero("2.4", "v") == 2.4
     assert ler_numero("39,9", "v") == 39.9
     assert ler_numero("", "v") == 0
