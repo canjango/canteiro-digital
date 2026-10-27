@@ -192,7 +192,7 @@ def render_topo(sis: Sistema) -> str:
                    + opcoes([x.id for x in _ordenadas(sis)], o.id, [x.nome for x in _ordenadas(sis)]) + "</select>")
         padrao_txt = PADROES.get(o.padrao, {}).get("nome", o.padrao).lower()
         meta = " · ".join(esc(x) for x in (o.cliente, o.endereco, f"{_num(o.area_construida)} m²",
-                                          f"padrão {padrao_txt} · {an.moeda(o.valor_m2)}/m²") if x)
+                                          f"padrão {padrao_txt} · {an.moeda(o.valor_m2)}/m²", f"BDI {_num(o.bdi)}%" if o.bdi else "") if x)
         datas = f"{an.data_br(o.inicio)} → {an.data_br(o.fim_previsto)}" if o.inicio else "sem cronograma"
         info = f'<p class="topo-meta">{meta}{" · " if meta else ""}{datas}</p>'
         selo = f'<span class="selo">{"EXEMPLO · " if o.exemplo else ""}{esc(o.padrao)}</span>'
@@ -266,7 +266,7 @@ def render_painel(sis: Sistema) -> str:
     <span class="kpi-rot">Executado (medição)</span>
     <span class="kpi-val">{an.moeda(fin['executado'])}</span>
     {barra(fin['executado_pct'] or 0)}
-    <span class="kpi-sub">{pct(fin['executado_pct'])} do orçado · a executar {an.moeda(fin['a_executar'])}</span>
+    <span class="kpi-sub">{pct(fin['executado_pct'])} do orçado · a executar {an.moeda(fin['a_executar'])}{f" · com BDI {_num(fin['bdi'])}%: <b>{an.moeda(fin['executado_bdi'])}</b>" if fin['bdi'] else ""}</span>
   </div>
   <div class="kpi kpi-{uso_cls}">
     <span class="kpi-rot">Comprometido em compras</span>
@@ -312,6 +312,7 @@ def render_painel(sis: Sistema) -> str:
         f'<td class="num">{pct(l["progresso"])}</td>'
         f'<td class="num">{an.moeda(l["orcado"])}</td>'
         f'<td class="num{" forte" if l["executado"] else ""}">{an.moeda(l["executado"])}</td>'
+        + (f'<td class="num">{an.moeda(l["executado_bdi"])}</td>' if o.bdi else "") +
         f'<td class="num">{an.moeda(l["a_executar"])}</td>'
         f'<td class="num">{an.moeda(l["comprometido"])}</td>'
         f'<td class="num {"neg" if l["saldo"] < 0 else ""}">{an.moeda(l["saldo"])}</td></tr>'
@@ -321,6 +322,7 @@ def render_painel(sis: Sistema) -> str:
     total = (
         f'<tr><td>Total da obra</td><td class="num">{pct(tot["executado"] / tot["orcado"] if tot["orcado"] else None)}</td>'
         f'<td class="num">{an.moeda(tot["orcado"])}</td><td class="num">{an.moeda(tot["executado"])}</td>'
+        + (f'<td class="num">{an.moeda(an.com_bdi(o, tot["executado"]))}</td>' if o.bdi else "") +
         f'<td class="num">{an.moeda(tot["a_executar"])}</td><td class="num">{an.moeda(tot["comprometido"])}</td>'
         f'<td class="num {"neg" if tot["saldo"] < 0 else ""}">{an.moeda(tot["saldo"])}</td></tr>'
     )
@@ -355,9 +357,9 @@ def render_painel(sis: Sistema) -> str:
 </div>
 <section class="painel-bloco">
   <h2>Medição físico-financeira por etapa</h2>
-  <p class="nota">Executado = orçado da etapa × avanço do checklist. Comprometido = compras aprovadas, pedidas ou entregues. Saldo = orçado − comprometido.</p>
+  <p class="nota">Executado = orçado da etapa × avanço do checklist (custo direto). Medição c/ BDI = executado + BDI, valor a faturar ao cliente. Comprometido = compras aprovadas, pedidas ou entregues. Saldo = orçado − comprometido.</p>
   <div class="tabela-wrap"><table class="tabela">
-    <thead><tr><th>Etapa</th><th class="num">Avanço</th><th class="num">Orçado</th><th class="num">Executado</th><th class="num">A executar</th><th class="num">Comprometido</th><th class="num">Saldo</th></tr></thead>
+    <thead><tr><th>Etapa</th><th class="num">Avanço</th><th class="num">Orçado</th><th class="num">Executado</th>{f'<th class="num">Medição c/ BDI {_num(o.bdi)}%</th>' if o.bdi else ""}<th class="num">A executar</th><th class="num">Comprometido</th><th class="num">Saldo</th></tr></thead>
     <tbody>{linhas}</tbody>
     <tfoot>{total}</tfoot>
   </table></div>
@@ -916,8 +918,8 @@ def render_obras(sis: Sistema) -> str:
       <label>Início<input id="o-ini" name="inicio" type="date"></label>
       <label>Término previsto<input id="o-fim" name="fim_previsto" type="date"></label>
       <label>Área construída (m²){campo_num("o-area", "area_construida", texto="100", placeholder="100")}</label>
-      {_campos_padrao("o", "R1-N", None)}
-      <label class="largo">Orçamento total (R$){campo_num("o-orc", "orcamento_total", placeholder="Em branco = área × valor do m²")}</label>
+      {_campos_padrao("o", "R1-N", None, _num(sv.BDI_SUGERIDO))}
+      <label class="largo">Orçamento — custo direto (R$){campo_num("o-orc", "orcamento_total", placeholder="Em branco = área × valor do m²")}</label>
       <button class="btn" type="submit">Criar obra com etapas padrão</button>
     </form>
     {'' if not sis.obras else '<p class="nota">' + botao("Criar também uma obra de exemplo", "obra.exemplo", "btn btn-link") + '</p>'}
@@ -942,14 +944,14 @@ def _form_editar(o: Obra) -> str:
   <label>Início<input id="e-ini" name="inicio" type="date" value="{esc(o.inicio)}"></label>
   <label>Término previsto<input id="e-fim" name="fim_previsto" type="date" value="{esc(o.fim_previsto)}"></label>
   <label>Área construída (m²){campo_num("e-area", "area_construida", texto=_num(o.area_construida), placeholder="100")}</label>
-  {_campos_padrao("e", o.padrao, o.valor_m2)}
-  <label class="largo">Orçamento total (R$){campo_num("e-orc", "orcamento_total", o.orcamento_total)}</label>
+  {_campos_padrao("e", o.padrao, o.valor_m2, _num(o.bdi))}
+  <label class="largo">Orçamento — custo direto (R$){campo_num("e-orc", "orcamento_total", o.orcamento_total)}</label>
   <button class="btn" type="submit">Salvar dados</button>
 </form>
 {_bloco_padrao(o, com_acao=True)}"""
 
 
-def _campos_padrao(prefixo: str, padrao: str, valor_m2: float | None) -> str:
+def _campos_padrao(prefixo: str, padrao: str, valor_m2: float | None, bdi: str = "") -> str:
     rotulos = [
         f'{rotulo_padrao(c)} — {an.moeda(PADROES[c]["valor_m2"])}/m²' if c != "PERS" else "Personalizado (informe o valor)"
         for c in CODIGOS_PADRAO
@@ -957,8 +959,11 @@ def _campos_padrao(prefixo: str, padrao: str, valor_m2: float | None) -> str:
     return (
         f'<label>Padrão construtivo<select id="{prefixo}-padrao" name="padrao">{opcoes(CODIGOS_PADRAO, padrao, rotulos)}</select></label>'
         f'<label>Valor por m² (R$){campo_num(f"{prefixo}-vm2", "valor_m2", valor_m2, placeholder="Em branco = valor do padrão")}</label>'
+        f'<label>BDI (%){campo_num(f"{prefixo}-bdi", "bdi", texto=bdi, placeholder="0", rotulo="BDI em porcentagem")}</label>'
         f'<p class="nota largo">Referência: {esc(REFERENCIA)}. Troque o padrão para usar o valor dele, '
-        f'ou digite o CUB do seu estado / custo próprio no valor por m².</p>'
+        f'ou digite o CUB do seu estado / custo próprio no valor por m². '
+        f'O orçamento é o custo direto (comparável ao CUB); o BDI (administração, riscos, impostos e lucro) entra por cima '
+        f'e forma o preço de venda. Faixa usual em residências: 20% a 30%.</p>'
     )
 
 
@@ -984,10 +989,13 @@ def _bloco_padrao(o: Obra, com_acao: bool = False) -> str:
     <dt>Valor do m²</dt><dd class="num-esq">{an.moeda(p['valor_m2'])}/m² <span class="nota">({origem})</span></dd>
     <dt>Área</dt><dd class="num-esq">{_num(p['area'])} m²</dd>
     <dt>Custo pelo padrão</dt><dd class="num-esq"><b>{an.moeda(p['estimado'])}</b></dd>
-    <dt>Orçamento da obra</dt><dd class="num-esq">{an.moeda(p['orcado'])}{f" · {an.moeda(p['orcado_m2'])}/m²" if p['orcado_m2'] else ""}</dd>
+    <dt>Orçamento (custo direto)</dt><dd class="num-esq">{an.moeda(p['orcado'])}{f" · {an.moeda(p['orcado_m2'])}/m²" if p['orcado_m2'] else ""}</dd>
+    <dt>BDI</dt><dd class="num-esq">{_num(p['bdi'])}% · {an.moeda(p['valor_bdi'])}</dd>
+    <dt>Preço de venda</dt><dd class="num-esq"><b>{an.moeda(p['preco_venda'])}</b>{f" · {an.moeda(p['preco_venda_m2'])}/m²" if p['preco_venda_m2'] else ""}</dd>
   </dl>
   {comp}
-  <p class="nota">O CUB não inclui terreno, projetos e taxas, fundações especiais, paisagismo e BDI da construtora (costumam somar 15% a 30%).</p>
+  <p class="nota">A comparação é feita no custo direto (orçamento × CUB), sem BDI dos dois lados. O CUB não inclui terreno, projetos e taxas,
+  fundações especiais e paisagismo; o BDI é somado à parte para chegar ao preço de venda.{"" if p['bdi'] else " <b>Esta obra está sem BDI</b> — informe em Obras."}</p>
   {f'<div class="linha-acoes">{acao}</div>' if acao else ''}
 </section>"""
 

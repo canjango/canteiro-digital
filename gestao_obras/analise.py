@@ -132,6 +132,7 @@ def custos_por_etapa(obra: Obra) -> list[dict]:
                 "progresso": prog,
                 "orcado": e.orcamento,
                 "executado": executado,
+                "executado_bdi": com_bdi(obra, executado),
                 "a_executar": round(e.orcamento - executado, 2),
                 "comprometido": round(comprometido, 2),
                 "realizado": round(realizado, 2),
@@ -169,7 +170,22 @@ def resumo_padrao(obra: Obra) -> dict:
         "orcado": orcado,
         "orcado_m2": round(orcado / obra.area_construida, 2) if obra.area_construida else None,
         "diferenca": (orcado / estimado - 1) if estimado and orcado else None,
+        # BDI: o CUB e o orçamento são custo direto; o preço de venda soma o BDI por cima
+        "bdi": obra.bdi,
+        "valor_bdi": round(orcado * obra.bdi / 100, 2),
+        "preco_venda": preco_venda(obra),
+        "preco_venda_m2": round(preco_venda(obra) / obra.area_construida, 2) if obra.area_construida else None,
+        "estimado_com_bdi": round(estimado * (1 + obra.bdi / 100), 2),
     }
+
+
+def com_bdi(obra: Obra, valor: float) -> float:
+    return round(valor * (1 + (obra.bdi or 0) / 100), 2)
+
+
+def preco_venda(obra: Obra) -> float:
+    """Orçamento (custo direto) + BDI."""
+    return com_bdi(obra, obra.orcamento_total)
 
 
 def resumo_financeiro(obra: Obra) -> dict:
@@ -190,6 +206,9 @@ def resumo_financeiro(obra: Obra) -> dict:
         "em_aberto": round(em_aberto, 2),
         "saldo": round(orc - comprometido, 2),
         "uso": (comprometido / orc) if orc else None,
+        "bdi": obra.bdi,
+        "executado_bdi": com_bdi(obra, executado),
+        "preco_venda": preco_venda(obra),
     }
 
 

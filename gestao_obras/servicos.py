@@ -62,6 +62,7 @@ def criar_obra(
     area_construida=100,
     padrao: str = PADRAO_INICIAL,
     valor_m2="",
+    bdi=0,
 ) -> Obra:
     """Cria a obra com todas as etapas padrão, distribuindo o orçamento pelo
     peso de cada etapa e o cronograma pela duração típica e pela sequência."""
@@ -86,12 +87,25 @@ def criar_obra(
         area_construida=area,
         padrao=padrao,
         valor_m2=vm2,
+        bdi=ler_bdi(bdi),
         modelo_etapas=MODELO_VERSAO,
     )
     obra.etapas = [_etapa_do_catalogo(e, orc) for e in ETAPAS_PADRAO]
     if d_ini and d_fim:
         planejar_cronograma(obra)
     return obra
+
+
+BDI_SUGERIDO = 25.0  # % típico de construtora em obra residencial (faixa usual 20% a 30%)
+
+
+def ler_bdi(valor) -> float:
+    """BDI em %: aceita 25 / 25,5 / 25%. Vazio = 0 (sem BDI)."""
+    texto = str(valor if valor is not None else "").replace("%", "").strip()
+    b = ler_numero(texto, "BDI")
+    if b > 100:
+        raise ValidacaoErro("BDI acima de 100% — confira o valor (use a porcentagem, ex.: 25)")
+    return round(b, 2)
 
 
 def _area(valor) -> float:
