@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from . import assistente as ia
 from . import servicos as sv
 from .modelos import Obra, ValidacaoErro
 
@@ -31,7 +32,14 @@ class Sistema:
             "confirmar_exclusao": "",
             "msg": "",
             "erro": "",
+            # revisão com Claude
+            "ia_modo": "nenhum",      # "claude" (dentro da Claude), "chave" (chave de API própria) ou "nenhum"
+            "ia_chave_final": "",     # últimos 4 caracteres da chave, só para exibir
+            "ia_chave_permitida": False,  # site externo aceita chave de API própria
+            "ia_em_andamento": None,  # {id, obra, escopo, codigo, foco}
+            "rev_aberta": "",         # revisão antiga expandida
         }
+        self.pedido_ia: dict | None = None  # pedido a enviar para a Claude (lido pela camada web)
 
     # ------------------------------------------------------------ util
     @property
@@ -216,6 +224,87 @@ class Sistema:
 
     def _a_obra_cancelar_exclusao(self, d):
         self.ui["confirmar_exclusao"] = ""
+
+    # ---------------------------------------------------------- revisão com Claude
+    ERROS_IA = {
+        "sem_ia": "A revisão com Claude não está disponível aqui. Abra o sistema pela Claude ou conecte uma chave de API na aba Obras.",
+        "not_granted": "A revisão não foi autorizada. Clique de novo em revisar e permita o uso da Claude.",
+        "sampling_disabled": "A Claude não está disponível para esta conta.",
+        "session_expired": "Sua sessão na Claude expirou. Entre de novo e tente outra vez.",
+        "rate_limited": "Muitas revisões em pouco tempo. Espere um minuto e tente de novo.",
+        "cancelled": "Revisão cancelada.",
+        "chave_invalida": "A chave de API foi recusada. Confira a chave na aba Obras.",
+        "sem_credito": "A conta da chave de API está sem crédito ou atingiu o limite de gastos.",
+        "sobrecarga": "A Claude está sobrecarregada no momento. Tente de novo em alguns minutos.",
+        "rede": "Não foi possível falar com a Claude (sem internet ou bloqueio de rede).",
+    }
+
+    def _a_ia_modo(self, d):
+        modo = d.get("modo", "nenhum")
+        if modo not in ("claude", "chave", "nenhum"):
+            raise ValidacaoErro("Modo inválido")
+        self.ui["ia_modo"] = modo
+        self.ui["ia_chave_final"] = str(d.get("final", ""))[-4:] if modo == "chave" else ""
+        self.ui["ia_chave_permitida"] = bool(d.get("chave_permitida", False))
+
+    def _a_ia_revisar(self, d):
+        o = self._obra_ativa()
+        if self.ui["ia_em_andamento"]:
+            raise ValidacaoErro("Já existe uma revisão em andamento; aguarde ou cancele")
+        if self.ui["ia_modo"] == "nenhum":
+            raise ValidacaoErro(self.ERROS_IA["sem_ia"])
+        escopo = d.get("escopo", "obra")
+        codigo = d.get("codigo", "") if escopo == "etapa" else ""
+        foco = d.get("foco", "")
+        pedido = ia.montar_pedido(o, escopo, codigo, foco, self.hoje)
+        pid = sv.novo_id("ia")
+        self.ui["ia_em_andamento"] = {"id": pid, "obra": o.id, "escopo": escopo, "codigo": codigo, "foco": foco}
+        self.pedido_ia = {"id": pid, "texto": pedido}
+
+    def _a_ia_resultado(self, d):
+        atual = self.ui["ia_em_andamento"]
+        if not atual or d.get("id") != atual["id"]:
+            return {}  # resposta antiga ou de revisão cancelada: ignora
+        self.ui["ia_em_andamento"] = None
+        if d.get("erro"):
+            raise ValidacaoErro(self.ERROS_IA.get(d["erro"], f"A revisão falhou: {str(d['erro'])[:200]}"))
+        obra = self.obras.get(atual["obra"])
+        if obra is None:
+            raise ValidacaoErro("A obra foi excluída durante a revisão")
+        resposta = ia.interpretar_resposta(d.get("texto", ""), [e.codigo for e in obra.etapas])
+        origem = "Claude" if self.ui["ia_modo"] == "claude" else "Claude (API)"
+        rev = ia.registrar_revisao(obra, atual["escopo"], atual["codigo"], atual["foco"], resposta, origem, self.hoje)
+        n = len(rev["pontos"])
+        self.ui["msg"] = f"Revisão pronta: {n} ponto(s) para conferir" if n else "Revisão pronta"
+        return {"alteradas": [obra.id]}
+
+    def _a_ia_cancelar(self, d):
+        if self.ui["ia_em_andamento"]:
+            self.ui["ia_em_andamento"] = None
+            self.ui["msg"] = "Revisão cancelada"
+
+    def _a_ia_adicionar(self, d):
+        o = self._obra_ativa()
+        rev = ia.revisao(o, d.get("rev", ""))
+        try:
+            sug = rev["sugestoes"][int(d.get("idx", -1))]
+        except (ValueError, IndexError, KeyError):
+            raise ValidacaoErro("Sugestão não encontrada") from None
+        etapa = o.etapa(sug["etapa"])
+        if sug["texto"].lower() not in {i.texto.lower() for i in etapa.checklist}:
+            sv.adicionar_item_etapa(o, etapa.codigo, sug["texto"])
+        sug["adicionado"] = True
+        return self._mudou(f"Item adicionado ao checklist de “{etapa.nome}”")
+
+    def _a_ia_apagar(self, d):
+        o = self._obra_ativa()
+        rev = ia.revisao(o, d.get("rev", ""))
+        o.revisoes.remove(rev)
+        return self._mudou("Revisão apagada")
+
+    def _a_ia_abrir(self, d):
+        rid = d.get("rev", "")
+        self.ui["rev_aberta"] = "" if self.ui["rev_aberta"] == rid else rid
 
     # ---------------------------------------------------------- etapas
     def _a_etapa_item(self, d):

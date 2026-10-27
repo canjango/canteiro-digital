@@ -39,15 +39,29 @@
     if (alvo) try { alvo.focus({ preventScroll: true }); } catch (e) {}
   }
 
-  async function executar(nome, dados, enviado) {
-    if (ocupado) return;
+  // ações rodam uma de cada vez, na ordem (cliques durante uma ação esperam a vez)
+  let fila = Promise.resolve();
+  function executar(nome, dados, enviado) {
+    const vez = fila.then(() => rodar(nome, dados, enviado));
+    fila = vez.catch(() => {});
+    return vez;
+  }
+
+  async function rodar(nome, dados, enviado) {
     ocupado = true;
     try {
+      if (nome === "ia.cancelar" && window.Backend.cancelarIa) window.Backend.cancelarIa();
       const r = await window.Backend.acao(nome, dados);
       const trocaTela = nome === "ui.aba" || nome === "obra.selecionar" || nome === "obra.criar" || nome === "obra.exemplo";
       // ao trocar de tela ou quando a ação falha, o formulário enviado mantém o que foi digitado
       pintar(r.html, { topo: trocaTela && r.ok, enviado: r.ok ? enviado : null });
       if (window.Backend.persistir) window.Backend.persistir(r.gravar || [], r.remover || []);
+      // o Python pediu uma revisão: a resposta da Claude volta como a ação "ia.resultado"
+      if (r.ia) {
+        const pedido = r.ia;
+        Promise.resolve(window.Backend.ia ? window.Backend.ia(pedido.texto) : { erro: "sem_ia" })
+          .then((res) => executar("ia.resultado", { id: pedido.id, texto: res.texto || "", erro: res.erro || "" }));
+      }
     } catch (e) {
       console.error(e);
       const aviso = document.createElement("div");
@@ -88,5 +102,5 @@
     return !!(a && app.contains(a) && a.matches("input, textarea") && a.value);
   }
 
-  window.Ponte = { pintar, executar, editando };
+  window.Ponte = { pintar, executar, editando, ocupado: () => ocupado };
 })();

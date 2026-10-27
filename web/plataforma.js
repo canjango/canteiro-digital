@@ -19,7 +19,9 @@
   function lsGravar() { try { localStorage.setItem(CHAVE_LOCAL, py.todas()); } catch (e) {} }
 
   // o banco é pedido já no início (responde em paralelo ao carregamento do Python)
-  const dbPromessa = (window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null)).catch(() => null);
+  const usar = (nome) => (window.claude && window.claude.use ? window.claude.use(nome) : Promise.resolve(null)).catch(() => null);
+  const dbPromessa = usar("db");
+  const samplePromessa = usar("sample");
 
   try {
     etapa("Carregando o Python no navegador…");
@@ -102,6 +104,96 @@
       for (const id of remover) agendar(id, null);
     },
   };
+
+  // ------------------------------------------------------------ Claude
+  // Dentro da Claude: capacidade "sample" (usa a conta de quem está vendo).
+  // No site externo: chave de API do próprio usuário, guardada só neste navegador.
+  const CHAVE_IA = "canteiro-digital:chave-api";
+  const MODELO_API = "claude-sonnet-5-5";
+  const chavePermitida = !!window.PYODIDE_CDN;  // só no site externo (dentro da Claude a rede externa é bloqueada)
+  let sample = null, controle = null;
+  function lerChave() { try { return localStorage.getItem(CHAVE_IA) || ""; } catch (e) { return ""; } }
+  function definirModo() {
+    const chave = chavePermitida ? lerChave() : "";
+    const modo = sample ? "claude" : chave ? "chave" : "nenhum";
+    py.acao("ia.modo", JSON.stringify({ modo, final: chave.slice(-4), chave_permitida: chavePermitida }));
+  }
+  async function perguntarClaude(texto) {
+    controle = new AbortController();
+    try {
+      if (sample) {
+        const r = await sample(texto, { modelTier: "default", cache: false, signal: controle.signal });
+        return { texto: r.text };
+      }
+      const chave = chavePermitida ? lerChave() : "";
+      if (!chave) return { erro: "sem_ia" };
+      let resp;
+      try {
+        resp = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          signal: controle.signal,
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": chave,
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true",
+          },
+          body: JSON.stringify({ model: MODELO_API, max_tokens: 4000, messages: [{ role: "user", content: texto }] }),
+        });
+      } catch (e) {
+        return { erro: e && e.name === "AbortError" ? "cancelled" : "rede" };
+      }
+      const corpo = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const msg = ((corpo && corpo.error && corpo.error.message) || "").toLowerCase();
+        if (resp.status === 401 || resp.status === 403) return { erro: "chave_invalida" };
+        if (resp.status === 429) return { erro: "rate_limited" };
+        if (msg.includes("credit") || msg.includes("billing") || msg.includes("spend")) return { erro: "sem_credito" };
+        if (resp.status >= 500) return { erro: "sobrecarga" };
+        return { erro: "HTTP " + resp.status + (msg ? ": " + msg.slice(0, 150) : "") };
+      }
+      const textoResp = (corpo.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+      return { texto: textoResp };
+    } catch (e) {
+      return { erro: (e && e.code) || "rede" };   // erros da capacidade sample têm "code"
+    } finally {
+      controle = null;
+    }
+  }
+  window.Backend.ia = perguntarClaude;
+  window.Backend.cancelarIa = () => { if (controle) controle.abort(); };
+
+  // configuração da chave (formulário local: a chave nunca passa pelo Python nem pelo banco)
+  app.addEventListener("submit", (e) => {
+    const f = e.target.closest('form[data-local="ia-chave"]');
+    if (!f) return;
+    e.preventDefault();
+    const chave = (new FormData(f).get("chave") || "").toString().trim();
+    if (!/^sk-ant-[A-Za-z0-9_\-]{20,}$/.test(chave)) {
+      alertaLocal("Isso não parece uma chave da API da Anthropic (começa com sk-ant-).");
+      return;
+    }
+    try { localStorage.setItem(CHAVE_IA, chave); } catch (err) { alertaLocal("Este navegador não permite salvar a chave."); return; }
+    definirModo();
+    window.Ponte.pintar(py.tela());
+  });
+  app.addEventListener("click", (e) => {
+    const b = e.target.closest('[data-local="ia-remover"]');
+    if (!b) return;
+    try { localStorage.removeItem(CHAVE_IA); } catch (err) {}
+    definirModo();
+    window.Ponte.pintar(py.tela());
+  });
+  function alertaLocal(texto) {
+    const aviso = document.createElement("div");
+    aviso.className = "aviso aviso-erro";
+    aviso.setAttribute("role", "alert");
+    aviso.textContent = texto;
+    app.prepend(aviso);
+    window.scrollTo(0, 0);
+  }
+  definirModo();
+  samplePromessa.then((s) => { sample = s; definirModo(); if (s && !window.Ponte.editando()) window.Ponte.pintar(py.tela()); });
 
   // ------------------------------------------------------------ banco
   etapa("Conectando ao banco de dados…");

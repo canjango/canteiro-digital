@@ -12,6 +12,7 @@ import copy
 from .etapas import CAMPOS_DESCRITIVOS, ETAPAS_PADRAO, MODELO_VERSAO
 from .padroes import CODIGOS_PADRAO, PADRAO_INICIAL, valor_referencia
 from .modelos import (
+    novo_id,
     CATEGORIAS_COMPRA,
     PRIORIDADES,
     STATUS_TAREFA,

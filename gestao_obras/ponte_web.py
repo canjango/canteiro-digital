@@ -53,8 +53,9 @@ def acao(nome: str, dados_json: str = "{}", sis: Sistema | None = None) -> str:
         return json.dumps({"ok": False, "html": render(s), "gravar": [], "remover": []}, ensure_ascii=False)
     r = s.despachar(str(nome), {str(k): v for k, v in dados.items()})
     gravar = [{"id": oid, "doc": s.exportar(oid)} for oid in r["alteradas"] if oid in s.obras]
+    pedido_ia, s.pedido_ia = s.pedido_ia, None  # entregue uma única vez à camada web
     return json.dumps(
-        {"ok": r["ok"], "html": render(s), "gravar": gravar, "remover": r["removidas"]},
+        {"ok": r["ok"], "html": render(s), "gravar": gravar, "remover": r["removidas"], "ia": pedido_ia},
         ensure_ascii=False,
     )
 

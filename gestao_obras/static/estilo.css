@@ -266,3 +266,30 @@ input, select, textarea { padding: 7px 9px; border: 1px solid var(--linha); bord
   .linha-barra { grid-template-columns: minmax(0, 6rem) 1fr 7.5rem; }
   .kpi-val { font-size: 1.4rem; }
 }
+
+/* ----- revisão com Claude */
+.bloco-ia { display: flex; flex-direction: column; gap: 10px; }
+.bloco-ia h2, .bloco-ia > h3 { margin: 0; }
+.bloco-ia .form-inline { flex: none; }
+.ia-form input { flex: 1 1 260px; }
+.btn-ia { background: var(--tinta); border-color: var(--tinta); color: var(--bg); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ia-andamento { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--tinta-2); font-size: 0.9rem; }
+.ia-pulso { width: 10px; height: 10px; border-radius: 50%; background: var(--acento); animation: pulso 1.2s ease-in-out infinite; }
+@keyframes pulso { 50% { opacity: 0.25; transform: scale(0.7); } }
+@media (prefers-reduced-motion: reduce) { .ia-pulso { animation: none; } }
+.ia-revisao { display: flex; flex-direction: column; gap: 8px; border-top: 1px dashed var(--linha); padding-top: 10px; }
+.ia-meta { margin: 0; font-family: var(--fonte-dado); font-size: 0.75rem; color: var(--tinta-2); }
+.ia-resumo { margin: 0; max-width: 80ch; }
+.ia-revisao h4 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tinta-2); margin: 4px 0 0; }
+.ia-pontos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ia-ponto { display: grid; grid-template-columns: 5.5rem 1fr; gap: 8px; align-items: start; padding: 8px 10px; border-radius: var(--raio); background: var(--bg); }
+.ia-ponto p { margin: 2px 0 0; color: var(--tinta-2); font-size: 0.88rem; }
+.ia-ponto .pill { justify-self: start; }
+.ia-sugestoes, .ia-perguntas { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; }
+.ia-sugestoes li { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.ia-sugestoes { list-style: none; padding-left: 0; }
+.ia-historico summary { cursor: pointer; color: var(--tinta-2); font-size: 0.88rem; }
+.ia-historico ul { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.config-ia p { margin: 0; }
+@media (max-width: 520px) { .ia-ponto { grid-template-columns: 1fr; } }

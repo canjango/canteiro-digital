@@ -22,6 +22,7 @@ from .modelos import (
     UNIDADES,
     Obra,
 )
+from . import assistente as ia
 from .sistema import Sistema
 
 
@@ -262,6 +263,7 @@ def render_painel(sis: Sistema) -> str:
 
     return f"""
 {kpis}
+{bloco_ia(sis, o, "obra")}
 <div class="grade-2">
   <section class="painel-bloco">
     <h2>Alertas <span class="contagem">{len(alertas)}</span></h2>
@@ -388,6 +390,7 @@ def _card_etapa(sis: Sistema, o: Obra, e, hoje) -> str:
       <button class="btn btn-sec" type="submit">Salvar etapa</button>
     </form>
     {normas}
+    {bloco_ia(sis, o, "etapa", e.codigo)}
   </div>
 </article>"""
 
@@ -642,6 +645,7 @@ def render_obras(sis: Sistema) -> str:
     <h2>Obras cadastradas <span class="contagem">{len(sis.obras)}</span></h2>
     {''.join(lista) or '<p class="vazio-txt">Nenhuma obra cadastrada.</p>'}
     {editar}
+    {config_ia(sis)}
   </section>
 </div>"""
 
@@ -704,4 +708,126 @@ def _bloco_padrao(o: Obra, com_acao: bool = False) -> str:
   {comp}
   <p class="nota">O CUB não inclui terreno, projetos e taxas, fundações especiais, paisagismo e BDI da construtora (costumam somar 15% a 30%).</p>
   {f'<div class="linha-acoes">{acao}</div>' if acao else ''}
+</section>"""
+
+
+# ======================================================================= revisão com Claude
+ROTULO_NIVEL = {"critico": "Crítico", "atencao": "Atenção", "ok": "OK"}
+
+
+def bloco_ia(sis: Sistema, o: Obra, escopo: str, codigo: str = "") -> str:
+    modo = sis.ui["ia_modo"]
+    andamento = sis.ui["ia_em_andamento"]
+    deste = bool(andamento and andamento["obra"] == o.id and andamento["escopo"] == escopo
+                 and andamento["codigo"] == codigo)
+    alvo = "esta etapa" if escopo == "etapa" else "a obra"
+    sufixo = f"-{codigo}" if codigo else ""
+    if deste:
+        acao = (f'<div class="ia-andamento" role="status"><span class="ia-pulso" aria-hidden="true"></span>'
+                f'<span>Claude está revisando {alvo}… costuma levar de 20 segundos a 1 minuto.</span>'
+                f'{botao("Cancelar", "ia.cancelar", "btn btn-link")}</div>')
+    elif modo == "nenhum":
+        acao = (f'<p class="nota">Para revisar com a Claude, abra o sistema pela Claude ou conecte uma chave de API. '
+                f'{botao("Configurar", "ui.aba", "btn btn-link", aba="obras")}</p>')
+    else:
+        ocupado = " disabled" if andamento else ""
+        acao = f"""
+<form class="form-inline ia-form" data-action="ia.revisar" data-escopo="{escopo}" data-codigo="{esc(codigo)}">
+  <input id="ia-foco{esc(sufixo)}" name="foco" maxlength="300" placeholder="Foco opcional (ex.: orçamento, sequência, segurança)" aria-label="Foco da revisão">
+  <button class="btn btn-ia" type="submit"{ocupado}>Revisar {alvo} com Claude</button>
+</form>"""
+    ultima = ia.ultima_revisao(o, escopo, codigo)
+    corpo = render_revisao(ultima) if ultima else ""
+    historico = ""
+    if escopo == "obra":
+        antigas = [r for r in o.revisoes if r is not ultima]
+        if antigas:
+            itens = "".join(
+                f'<li>{botao(f"{an.data_br(r.get("data", ""))} · {_rotulo_rev(o, r)}", "ia.abrir", "btn btn-link", rev=r["id"])}'
+                f'{render_revisao(r) if sis.ui["rev_aberta"] == r["id"] else ""}</li>'
+                for r in antigas
+            )
+            historico = f'<details class="ia-historico"><summary>Revisões anteriores ({len(antigas)})</summary><ul>{itens}</ul></details>'
+    titulo = "Revisão com Claude" if escopo == "obra" else "Revisão da etapa com Claude"
+    tag = "section" if escopo == "obra" else "div"
+    classe = "painel-bloco bloco-ia" if escopo == "obra" else "etapa-sec bloco-ia"
+    nivel = "h2" if escopo == "obra" else "h3"
+    return f"""
+<{tag} class="{classe}">
+  <{nivel}>{titulo}</{nivel}>
+  {acao}
+  {corpo}
+  {historico}
+</{tag}>"""
+
+
+def _rotulo_rev(o: Obra, r: dict) -> str:
+    if r.get("escopo") == "etapa":
+        try:
+            return f"etapa {o.etapa(r.get('codigo', '')).nome}"
+        except ValueError:
+            return f"etapa {r.get('codigo', '')}"
+    return "obra inteira"
+
+
+def render_revisao(r: dict) -> str:
+    pontos = "".join(
+        f'<li class="ia-ponto ia-{esc(p["nivel"])}"><span class="pill pill-{ {"critico": "atraso", "atencao": "alta", "ok": "ok"}.get(p["nivel"], "neutro") }">'
+        f'{ROTULO_NIVEL.get(p["nivel"], "")}</span><div><b>{esc(p["titulo"])}</b>'
+        f'{f"<p>{esc(p.get("detalhe", ""))}</p>" if p.get("detalhe") else ""}</div></li>'
+        for p in r.get("pontos", [])
+    )
+    sugestoes = "".join(
+        f'<li><span class="cod">{esc(sg["etapa"])}</span> {esc(sg["texto"])} '
+        + ('<span class="pill pill-ok">no checklist</span>' if sg.get("adicionado")
+           else botao("Adicionar ao checklist", "ia.adicionar", "btn btn-mini", rev=r["id"], idx=str(i)))
+        + "</li>"
+        for i, sg in enumerate(r.get("sugestoes", []))
+    )
+    perguntas = "".join(f"<li>{esc(q)}</li>" for q in r.get("perguntas", []))
+    foco = f' · foco: {esc(r["foco"])}' if r.get("foco") else ""
+    resumo = esc(r.get("resumo", "")).replace("\n", "<br>")
+    return f"""
+<article class="ia-revisao">
+  <p class="ia-meta">{an.data_br(r.get("data", ""))} · {esc(r.get("origem", "Claude"))}{foco}</p>
+  {f'<p class="ia-resumo">{resumo}</p>' if resumo else ''}
+  {f'<ul class="ia-pontos">{pontos}</ul>' if pontos else ''}
+  {f'<h4>Itens sugeridos para o checklist</h4><ul class="ia-sugestoes">{sugestoes}</ul>' if sugestoes else ''}
+  {f'<h4>Informações que faltam</h4><ul class="ia-perguntas">{perguntas}</ul>' if perguntas else ''}
+  <p class="nota">Revisão gerada por IA a partir dos dados do sistema. Confira antes de decidir. {botao("Apagar revisão", "ia.apagar", "btn btn-link", rev=r["id"])}</p>
+</article>"""
+
+
+def config_ia(sis: Sistema) -> str:
+    modo = sis.ui["ia_modo"]
+    if modo == "claude":
+        return """
+<section class="cartao config-ia">
+  <h2>Revisão com Claude</h2>
+  <p class="nota">Conectada pela sua conta da Claude. Cada revisão usa o seu limite de uso da Claude e pede permissão na primeira vez.</p>
+</section>"""
+    if modo == "nenhum" and not sis.ui.get("ia_chave_permitida"):
+        return """
+<section class="cartao config-ia">
+  <h2>Revisão com Claude</h2>
+  <p class="nota">Disponível quando o sistema é aberto pela Claude (usa a sua conta) ou pelo site, com uma chave de API própria.</p>
+</section>"""
+    if modo == "chave":
+        estado = f'<p><span class="pill pill-ok">Conectada</span> chave terminada em <b>…{esc(sis.ui["ia_chave_final"])}</b></p>'
+        acoes = '<button type="button" class="btn btn-sec" data-local="ia-remover">Remover chave deste navegador</button>'
+    else:
+        estado = '<p><span class="pill pill-aguardando">Não conectada</span></p>'
+        acoes = ""
+    return f"""
+<section class="cartao config-ia">
+  <h2>Revisão com Claude</h2>
+  {estado}
+  <p class="nota">Fora da Claude, a revisão usa uma chave da API da Anthropic (console.anthropic.com). A chave fica salva só neste navegador,
+  nunca vai para o banco de dados nem para o código do site, e cada revisão é cobrada na sua conta da API.
+  Use uma chave com limite de gastos e não conecte em computadores compartilhados.</p>
+  <form class="form-inline" data-local="ia-chave" autocomplete="off">
+    <input name="chave" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" aria-label="Chave da API da Anthropic" required>
+    <button class="btn" type="submit">{"Trocar chave" if modo == "chave" else "Conectar"}</button>
+  </form>
+  {acoes}
 </section>"""
