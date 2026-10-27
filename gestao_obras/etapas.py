@@ -197,7 +197,7 @@ ETAPAS_PADRAO: list[dict] = [
         "descricao": "Paredes de bloco cerâmico até o respaldo, com vãos, vergas, contravergas e encunhamento.",
         "servicos": [
             _s("Alvenaria de bloco cerâmico 14x19x29", "m²", 270),
-            _s("Blocos cerâmicos 14x19x29", "un", 4800),
+            _s("Blocos cerâmicos 14x19x29 (com perdas)", "un", 5000),
             _s("Argamassa de assentamento", "m³", 4),
             _s("Vergas e contravergas", "m", 40),
             _s("Encunhamento", "m", 75),

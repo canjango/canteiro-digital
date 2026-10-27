@@ -38,6 +38,8 @@ class Sistema:
             "ia_chave_permitida": False,  # site externo aceita chave de API própria
             "ia_em_andamento": None,  # {id, obra, escopo, codigo, foco}
             "rev_aberta": "",         # revisão antiga expandida
+            "compras_vista": "pedidos",  # "pedidos" ou "materiais"
+            "mat_abertas": [],        # etapas abertas na lista de materiais
         }
         self.pedido_ia: dict | None = None  # pedido a enviar para a Claude (lido pela camada web)
 
@@ -355,6 +357,30 @@ class Sistema:
         sv.remover_compra(self._obra_ativa(), d.get("id", ""))
         return self._mudou("Compra excluída")
 
+    # ---------------------------------------------------------- lista de materiais
+    def _a_ui_vista_compras(self, d):
+        vista = d.get("vista", "pedidos")
+        if vista not in ("pedidos", "materiais"):
+            raise ValidacaoErro("Vista inválida")
+        self.ui["compras_vista"] = vista
+
+    def _a_ui_mat_expandir(self, d):
+        cod = d.get("codigo", "")
+        self._obra_ativa().etapa(cod)
+        abertas = self.ui["mat_abertas"]
+        abertas.remove(cod) if cod in abertas else abertas.append(cod)
+
+    def _a_mat_solicitar(self, d):
+        c = sv.solicitar_material(self._obra_ativa(), d.get("chave", ""), d.get("quantidade"), self.hoje)
+        return self._mudou(f"Pedido criado: {c.descricao} ({c.quantidade:g} {c.unidade}) — informe o preço na cotação")
+
+    def _a_mat_solicitar_etapa(self, d):
+        o = self._obra_ativa()
+        n = sv.solicitar_etapa(o, d.get("codigo", ""), self.hoje)
+        if not n:
+            raise ValidacaoErro("Todos os materiais desta etapa já foram solicitados")
+        return self._mudou(f"{n} pedido(s) de compra criados para “{o.etapa(d['codigo']).nome}” — informe os preços na cotação")
+
     # ---------------------------------------------------------- tarefas
     def _a_tarefa_criar(self, d):
         itens = str(d.get("itens", "")).splitlines()
@@ -395,8 +421,9 @@ def obra_exemplo(hoje: date) -> Obra:
     sv.salvar_observacao(o, "EST", "Laje do quarto 2 com escoramento reforçado (vão maior). "
                                     "Concretagem condicionada à conferência das armaduras.")
 
-    def compra(desc, et, cat, q, un, vu, forn, status, dias, prio="Média"):
+    def compra(desc, et, cat, q, un, vu, forn, status, dias, prio="Média", material=""):
         c = sv.adicionar_compra(o, desc, et, cat, q, un, vu, forn, prio, (hoje + timedelta(days=dias)).isoformat(), hoje)
+        c.material = material
         caminho = {
             "Em cotação": ["Em cotação"],
             "Aprovada": ["Aprovada"],
@@ -407,15 +434,14 @@ def obra_exemplo(hoje: date) -> Obra:
             sv.mudar_status_compra(o, c.id, s, hoje)
         return c
 
-    compra("Concreto usinado fck 25 MPa", "FUN", "Material", 9, "m³", 520, "Concreteira", "Entregue", -95)
+    compra("Concreto usinado fck 25 MPa", "FUN", "Material", 9, "m³", 520, "Concreteira", "Entregue", -95, material="FUN:concreto")
     compra("Aço CA-50/CA-60", "EST", "Material", 0.75, "t", 7800, "Distribuidora de aço", "Entregue", -60)
-    compra("Concreto usinado fck 25 MPa (laje e cintas)", "EST", "Material", 11, "m³", 540, "Concreteira", "Pedido feito", 4, "Alta")
-    compra("Locação de escoramento metálico", "EST", "Equipamento/locação", 1, "mês", 2800, "Locadora", "Entregue", -40)
-    compra("Bloco cerâmico 14x19x29", "ALV", "Material", 4800, "un", 2.35, "Cerâmica", "Aprovada", 6, "Alta")
-    compra("Cimento CP-II 50 kg", "ALV", "Material", 60, "sc", 38.9, "", "Em cotação", -3, "Alta")
-    compra("Empreitada de alvenaria (mão de obra)", "ALV", "Mão de obra", 270, "m²", 40, "Equipe de alvenaria", "Aprovada", 10)
+    compra("Concreto usinado fck 25 MPa (laje e cintas)", "EST", "Material", 11, "m³", 540, "Concreteira", "Pedido feito", 4, "Alta", material="EST:concreto")
+    compra("Locação de escoramento metálico", "EST", "Equipamento/locação", 1, "mês", 2800, "Locadora", "Entregue", -40, material="EST:escoras")
+    compra("Bloco cerâmico 14×19×29 cm", "ALV", "Material", 5000, "un", 2.35, "Cerâmica", "Aprovada", 6, "Alta", material="ALV:bloco")
+    compra("Cimento CP-II 50 kg", "ALV", "Material", 18, "sc", 38.9, "", "Em cotação", -3, "Alta", material="ALV:cimento")
+    compra("Empreitada de alvenaria (mão de obra)", "ALV", "Mão de obra", 270, "m²", 38, "Equipe de alvenaria", "Aprovada", 10)
     compra("Tubos e conexões PVC (água e esgoto)", "HID", "Material", 1, "vb", 4200, "", "Solicitada", 25)
-    compra("Telha cerâmica e madeiramento", "COB", "Material", 1, "vb", 0, "", "Solicitada", 40)
 
     t1 = sv.adicionar_tarefa(o, "Conferir armaduras da laje do pavimento superior", "EST", "Engenheiro de campo",
                              (hoje + timedelta(days=2)).isoformat(), "Urgente",

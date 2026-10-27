@@ -293,3 +293,28 @@ input, select, textarea { padding: 7px 9px; border: 1px solid var(--linha); bord
 .ia-historico ul { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
 .config-ia p { margin: 0; }
 @media (max-width: 520px) { .ia-ponto { grid-template-columns: 1fr; } }
+
+/* ----- compras: vistas e lista de materiais */
+.vistas { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--linha); }
+.vista { border: 0; background: none; padding: 8px 12px; cursor: pointer; font-weight: 600; color: var(--tinta-2); border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.vista.ativa { color: var(--tinta); border-bottom-color: var(--acento); }
+.mat-lista { display: flex; flex-direction: column; gap: 8px; }
+.mat-etapa { background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio); }
+.mat-urgente { border-left: 5px solid var(--critico); }
+.mat-cab { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; padding: 10px 14px; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; }
+.mat-cab:focus-visible { outline: 2px solid var(--acento); outline-offset: -2px; }
+.mat-corpo { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; border-top: 1px dashed var(--linha); padding-top: 10px; }
+.tabela-mat td { white-space: normal; vertical-align: middle; }
+.tabela-mat td:first-child { min-width: 14rem; }
+.mat-form { flex-wrap: nowrap; }
+.mat-form input { width: 6.5rem; flex: 0 0 6.5rem; }
+.tag-cat { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--info); background: var(--info-bg); padding: 0 5px; border-radius: 3px; }
+@media (max-width: 600px) {
+  .tabela-mat thead { display: none; }
+  .tabela-mat tr { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 10px 0; border-bottom: 1px solid var(--linha); }
+  .tabela-mat td { border: 0; padding: 0; }
+  .tabela-mat td:first-child { grid-column: 1 / -1; min-width: 0; font-weight: 600; }
+  .tabela-mat td:nth-child(2) { text-align: left !important; }
+  .tabela-mat td:last-child { grid-column: 1 / -1; }
+  .tabela-mat td:last-child:empty { display: none; }
+}

@@ -11,6 +11,7 @@ import copy
 
 from .etapas import CAMPOS_DESCRITIVOS, ETAPAS_PADRAO, MODELO_VERSAO
 from .padroes import CODIGOS_PADRAO, PADRAO_INICIAL, valor_referencia
+from . import materiais as mt
 from .modelos import (
     novo_id,
     CATEGORIAS_COMPRA,
@@ -408,3 +409,65 @@ def alternar_item_tarefa(obra: Obra, tarefa_id: str, item_id: str, hoje: date | 
 
 def remover_tarefa(obra: Obra, tarefa_id: str) -> None:
     obra.tarefas.remove(obra.tarefa(tarefa_id))
+
+
+# ============================================================== lista de materiais
+def situacao_materiais(obra: Obra, codigo: str) -> list[dict]:
+    """Materiais da etapa com quantidade necessária (pela área) e o que já foi pedido."""
+    obra.etapa(codigo)
+    linhas = []
+    for m in mt.materiais_da_etapa(codigo):
+        necessario = mt.quantidade(m["qtd"], m["un"], obra.area_construida)
+        compras = [c for c in obra.compras if c.material == m["chave"] and c.status != "Cancelada"]
+        pedido = round(sum(c.quantidade for c in compras), 3)
+        if not compras:
+            situacao = "Não solicitado"
+        elif pedido + 1e-9 < necessario:
+            situacao = "Parcial"
+        elif all(c.status == "Entregue" for c in compras):
+            situacao = "Entregue"
+        else:
+            # a situação menos avançada entre os pedidos
+            ordem = ("Solicitada", "Em cotação", "Aprovada", "Pedido feito", "Entregue")
+            situacao = min((c.status for c in compras), key=ordem.index)
+        linhas.append({**m, "necessario": necessario, "pedido": pedido, "faltante": max(0.0, round(necessario - pedido, 3)),
+                       "compras": compras, "situacao": situacao})
+    return linhas
+
+
+def _prazo_material(obra: Obra, codigo: str, hoje: date) -> tuple[str, str]:
+    """Data em que o material precisa chegar (7 dias antes do início da etapa) e prioridade."""
+    ini = ler_data(obra.etapa(codigo).inicio_previsto)
+    if not ini:
+        return "", "Média"
+    chegada = max(hoje, ini - timedelta(days=7))
+    prioridade = "Alta" if (ini - hoje).days <= 15 else "Média"
+    return chegada.isoformat(), prioridade
+
+
+def solicitar_material(obra: Obra, chave: str, quantidade=None, hoje: date | None = None) -> Compra:
+    hoje = _hoje(hoje)
+    try:
+        m = mt.material(chave)
+    except KeyError:
+        raise ValidacaoErro("Material não encontrado na lista") from None
+    codigo = chave.split(":", 1)[0]
+    linha = next(x for x in situacao_materiais(obra, codigo) if x["chave"] == chave)
+    if quantidade in (None, ""):
+        qtd = linha["faltante"] or linha["necessario"]
+    else:
+        qtd = ler_numero(quantidade, "Quantidade")
+    if qtd <= 0:
+        raise ValidacaoErro("Quantidade deve ser maior que zero")
+    data, prioridade = _prazo_material(obra, codigo, hoje)
+    compra = adicionar_compra(obra, m["material"], codigo, m["categoria"], qtd, m["un"], 0, "", prioridade, data, hoje)
+    compra.material = chave
+    return compra
+
+
+def solicitar_etapa(obra: Obra, codigo: str, hoje: date | None = None) -> int:
+    """Gera pedidos para todos os materiais da etapa ainda não solicitados."""
+    pendentes = [x for x in situacao_materiais(obra, codigo) if x["situacao"] == "Não solicitado"]
+    for x in pendentes:
+        solicitar_material(obra, x["chave"], hoje=hoje)
+    return len(pendentes)

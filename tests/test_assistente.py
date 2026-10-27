@@ -55,6 +55,7 @@ def test_pedido_da_etapa_e_detalhado(sis):
     assert et["observacao"].startswith("Laje do quarto 2")
     assert [x["codigo"] for x in dados["predecessoras"]] == ["FUN"]
     assert all(c["etapa"] == "EST" for c in dados["compras_da_etapa"])
+    assert any(m["material"].startswith("Vigota") for m in dados["lista_de_materiais"])
     with pytest.raises(ValidacaoErro):
         ia.montar_pedido(sis.obra, "outra")
     assert len(ia.montar_pedido(sis.obra, "obra", foco="x" * 999, hoje=HOJE)) < 60_000

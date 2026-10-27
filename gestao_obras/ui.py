@@ -23,6 +23,7 @@ from .modelos import (
     Obra,
 )
 from . import assistente as ia
+from . import servicos as sv
 from .sistema import Sistema
 
 
@@ -442,7 +443,108 @@ FILTROS_COMPRA = (("abertas", "Em aberto"), ("atrasadas", "Atrasadas"), ("todas"
                   ("Entregue", "Entregues"), ("Cancelada", "Canceladas"))
 
 
+def _vistas_compras(sis: Sistema) -> str:
+    atual = sis.ui["compras_vista"]
+    o = sis.obra
+    pend = sum(1 for e in o.etapas if not an.etapa_concluida(e)
+               for x in sv.situacao_materiais(o, e.codigo) if x["situacao"] == "Não solicitado")
+    opcoes_v = (("pedidos", f"Pedidos de compra <span class=\"contagem\">{len(o.compras)}</span>"),
+                ("materiais", f"Lista de materiais por etapa <span class=\"contagem\">{pend} a pedir</span>"))
+    return '<nav class="vistas" aria-label="Compras">' + "".join(
+        f'<button type="button" class="vista{" ativa" if k == atual else ""}" data-action="ui.vista_compras" data-vista="{k}"'
+        f'{" aria-current=page" if k == atual else ""}>{r}</button>' for k, r in opcoes_v) + "</nav>"
+
+
 def render_compras(sis: Sistema) -> str:
+    if sis.ui["compras_vista"] == "materiais":
+        return _vistas_compras(sis) + render_materiais(sis)
+    return _vistas_compras(sis) + _render_pedidos(sis)
+
+
+def render_materiais(sis: Sistema) -> str:
+    o, hoje = sis.obra, sis.hoje
+    f_etapa = sis.ui["filtro_etapa"]
+    etapas = [e for e in o.etapas if not f_etapa or e.codigo == f_etapa]
+    total = pedidos = entregues = 0
+    blocos = []
+    for e in etapas:
+        linhas = sv.situacao_materiais(o, e.codigo)
+        if not linhas:
+            continue
+        n_pend = sum(1 for x in linhas if x["situacao"] == "Não solicitado")
+        n_ent = sum(1 for x in linhas if x["situacao"] == "Entregue")
+        total += len(linhas)
+        pedidos += len(linhas) - n_pend
+        entregues += n_ent
+        blocos.append(_bloco_materiais(sis, o, e, linhas, n_pend, n_ent, hoje))
+    sel_etapa = (f'<select id="filtro-etapa-mat" data-action="ui.filtro" name="filtro_etapa" aria-label="Filtrar por etapa">'
+                 + opcoes([""] + [e.codigo for e in o.etapas], f_etapa, ["Todas as etapas"] + [f"{e.codigo} · {e.nome}" for e in o.etapas])
+                 + "</select>")
+    return f"""
+<div class="barra-acoes">
+  <p class="nota">{total} materiais · <b>{pedidos}</b> já pedidos · {entregues} entregues · quantidades para {_num(o.area_construida)} m² (inclui perdas usuais).</p>
+  {sel_etapa}
+</div>
+<p class="nota">Ao solicitar, o pedido entra em <b>Pedidos de compra</b> como “Solicitada”, com prazo de chegada 7 dias antes do início da etapa. O preço é informado na cotação.
+Quantidades são estimativas para casa térrea padrão normal; confira com o projeto executivo.</p>
+<div class="mat-lista">{''.join(blocos)}</div>"""
+
+
+def _bloco_materiais(sis: Sistema, o: Obra, e, linhas: list[dict], n_pend: int, n_ent: int, hoje) -> str:
+    aberta = e.codigo in sis.ui["mat_abertas"]
+    ini = sv.ler_data(e.inicio_previsto)
+    quando = ""
+    if ini:
+        dias = (ini - hoje).days
+        quando = (f"começa em {dias} dia(s)" if dias > 0 else "em andamento ou atrasada") if not an.etapa_concluida(e) else "concluída"
+    urgente = bool(ini and n_pend and 0 <= (ini - hoje).days <= 15 and not an.etapa_concluida(e))
+    concluida = an.etapa_concluida(e)
+    estado = (pill("Entregue") if n_ent == len(linhas) else
+              '<span class="pill pill-ok">Etapa concluída</span>' if concluida else
+              f'<span class="pill pill-{"atraso" if urgente else "aguardando"}">{n_pend} a pedir</span>' if n_pend else '<span class="pill pill-andamento">Tudo pedido</span>')
+    cab = f"""
+<button type="button" class="mat-cab" data-action="ui.mat_expandir" data-codigo="{esc(e.codigo)}" aria-expanded="{str(aberta).lower()}">
+  <span class="cod">{esc(e.codigo)}</span>
+  <span class="etapa-nome">{esc(e.nome)}</span>
+  {estado}
+  <span class="etapa-info">{len(linhas)} materiais{f" · {an.data_br(e.inicio_previsto)} · {quando}" if ini else ""}</span>
+</button>"""
+    if not aberta:
+        return f'<article class="mat-etapa{" mat-urgente" if urgente else ""}">{cab}</article>'
+    rows = "".join(_linha_material(x) for x in linhas)
+    todos = botao(f"Solicitar os {n_pend} pendentes", "mat.solicitar_etapa", "btn", codigo=e.codigo) if n_pend else ""
+    if n_pend and an.etapa_concluida(e):
+        todos = '<p class="nota">Etapa concluída: os materiais provavelmente já foram comprados fora do sistema.</p>' + todos
+    return f"""
+<article class="mat-etapa aberta{" mat-urgente" if urgente else ""}">
+  {cab}
+  <div class="mat-corpo">
+    <div class="tabela-wrap"><table class="tabela tabela-mat">
+      <thead><tr><th>Material</th><th class="num">Necessário</th><th>Situação</th><th>Pedir</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table></div>
+    <div class="linha-acoes">{todos}</div>
+  </div>
+</article>"""
+
+
+def _linha_material(x: dict) -> str:
+    sit = x["situacao"]
+    detalhe = f'<span class="nota"> {_num(x["pedido"])} {esc(x["un"])} pedido(s)</span>' if x["pedido"] and sit != "Entregue" else ""
+    status = (f'<span class="pill pill-aguardando">Não solicitado</span>' if sit == "Não solicitado"
+              else f'<span class="pill pill-alta">Parcial</span>{detalhe}' if sit == "Parcial" else pill(sit))
+    if sit in ("Não solicitado", "Parcial"):
+        sugerido = x["faltante"] or x["necessario"]
+        acao = f"""<form class="form-inline mat-form" data-action="mat.solicitar" data-chave="{esc(x['chave'])}">
+  {campo_num("q-" + x["chave"].replace(":", "-"), "quantidade", texto=_num(sugerido), rotulo=f"Quantidade de {x['material']}")}
+  <button class="btn btn-mini" type="submit">Solicitar</button></form>"""
+    else:
+        acao = ""
+    return (f'<tr><td>{esc(x["material"])}{f" <span class=tag-cat>{esc(x["categoria"])}</span>" if x["categoria"] != "Material" else ""}</td>'
+            f'<td class="num">{_num(x["necessario"])} {esc(x["un"])}</td><td>{status}</td><td>{acao}</td></tr>')
+
+
+def _render_pedidos(sis: Sistema) -> str:
     o, hoje = sis.obra, sis.hoje
     filtro, f_etapa = sis.ui["filtro_compra"], sis.ui["filtro_etapa"]
     atrasadas = {c.id for c in an.compras_atrasadas(o, hoje)}
@@ -524,7 +626,7 @@ def _card_compra(o: Obra, c, atrasada: bool) -> str:
     <h3>{esc(c.descricao)}</h3>
     <div class="pills">{pill(c.status)}{pill(c.prioridade)}{'<span class="pill pill-atraso">Atrasada</span>' if atrasada else ''}</div>
   </div>
-  <p class="cartao-meta"><span class="cod">{esc(c.etapa)}</span> {esc(etapa_nome)} · {esc(c.categoria)} · {nec}{entrega}</p>
+  <p class="cartao-meta"><span class="cod">{esc(c.etapa)}</span> {esc(etapa_nome)} · {esc(c.categoria)} · {nec}{entrega}{" · da lista de materiais" if c.material else ""}</p>
   <p class="valores"><span>{_num(c.quantidade)} {esc(c.unidade)} × {an.moeda(c.valor_unitario)}</span><b>{an.moeda(c.valor_total)}</b></p>
   {f'<p class="cartao-meta">Fornecedor: {esc(c.fornecedor)}</p>' if c.fornecedor else ''}
   {editar_preco}

@@ -111,6 +111,11 @@ def montar_pedido(obra: Obra, escopo: str, codigo: str = "", foco: str = "", hoj
                                   if any(x.codigo == p for x in obra.etapas)]
         dados["compras_da_etapa"] = [_compra(c) for c in obra.compras if c.etapa == codigo]
         dados["tarefas_da_etapa"] = [_tarefa(t) for t in obra.tarefas if t.etapa == codigo]
+        from .servicos import situacao_materiais
+        dados["lista_de_materiais"] = [
+            {"material": x["material"], "necessario": x["necessario"], "un": x["un"], "situacao": x["situacao"]}
+            for x in situacao_materiais(obra, codigo)
+        ]
         alvo = f"a etapa {e.codigo} – {e.nome}"
     else:
         dados["etapas"] = [_etapa_resumo(obra, e, hoje, False) for e in obra.etapas]

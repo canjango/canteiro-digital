@@ -19,7 +19,8 @@ TRANSICOES_COMPRA = {
     "Cancelada": ("Solicitada",),
 }
 CATEGORIAS_COMPRA = ("Material", "Mão de obra", "Serviço terceirizado", "Equipamento/locação", "Taxas e documentos")
-UNIDADES = ("un", "m", "m²", "m³", "kg", "t", "sc", "l", "vb", "h", "dia", "mês")
+UNIDADES = ("un", "m", "m²", "m³", "kg", "t", "sc", "l", "vb", "h", "dia", "mês",
+            "lata", "galão", "rolo", "cj", "pç", "barra", "cx", "pct")
 
 STATUS_TAREFA = ("A fazer", "Em andamento", "Bloqueada", "Concluída")
 PRIORIDADES = ("Baixa", "Média", "Alta", "Urgente")
@@ -124,6 +125,7 @@ class Compra:
     data_necessidade: str = ""
     data_entrega: str = ""
     historico: list[dict] = field(default_factory=list)
+    material: str = ""  # chave do material da lista da etapa (ex.: "ALV:bloco"), quando veio de lá
     id: str = field(default_factory=lambda: novo_id("cmp"))
 
     @property

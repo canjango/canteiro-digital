@@ -262,9 +262,12 @@ def alertas(obra: Obra, hoje: date | None = None) -> list[Alerta]:
                               f"Fim previsto {_br(e.fim_previsto)} · {progresso_etapa(e):.0%} concluída", "etapas"))
         ini = ler_data(e.inicio_previsto)
         if ini and hoje <= ini <= hoje + timedelta(days=15) and not etapa_concluida(e):
-            if not any(c.etapa == e.codigo and c.status != "Cancelada" for c in obra.compras):
-                out.append(Alerta("info", f"{e.nome} começa em {(ini - hoje).days} dia(s) sem compras lançadas",
-                                  "Planeje materiais e mão de obra", "compras"))
+            from .servicos import situacao_materiais
+            faltam = sum(1 for x in situacao_materiais(obra, e.codigo) if x["situacao"] == "Não solicitado")
+            if faltam:
+                out.append(Alerta("atencao" if (ini - hoje).days <= 7 else "info",
+                                  f"{e.nome} começa em {(ini - hoje).days} dia(s) com {faltam} materiais não solicitados",
+                                  "Veja Compras → Lista de materiais", "compras"))
 
     for linha in custos_por_etapa(obra):
         if linha["orcado"] and linha["comprometido"] > linha["orcado"]:
