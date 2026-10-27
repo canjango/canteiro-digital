@@ -15,8 +15,19 @@ HOJE = date(2026, 10, 26)
 
 
 def test_padroes_em_ordem_crescente_de_custo():
-    assert valor_referencia("R1-B") < valor_referencia("R1-N") < valor_referencia("R1-A")
-    assert set(PADROES) == {"R1-B", "R1-N", "R1-A", "PERS"}
+    assert valor_referencia("R1-B") < valor_referencia("R1-N") < valor_referencia("R1-MA") < valor_referencia("R1-A")
+    assert list(PADROES) == ["R1-B", "R1-N", "R1-MA", "R1-A", "PERS"]  # ordem do seletor
+
+
+def test_padrao_medio_alto_e_a_media_entre_normal_e_alto():
+    assert valor_referencia("R1-MA") == round((valor_referencia("R1-N") + valor_referencia("R1-A")) / 2, 2)
+    o = sv.criar_obra("Casa", padrao="R1-MA", area_construida="100")
+    assert o.padrao == "R1-MA" and o.orcamento_total == pytest.approx(100 * valor_referencia("R1-MA"))
+    s = Sistema(hoje=HOJE)
+    s.despachar("obra.criar", {"nome": "Casa", "padrao": "R1-MA"})
+    s.despachar("ui.aba", {"aba": "obras"})
+    html = render(s)
+    assert "Médio/alto (entre R1-N e R1-A)" in html and "padrão médio/alto" in html
 
 
 def test_obra_sem_orcamento_usa_area_vezes_m2():
