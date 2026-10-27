@@ -107,3 +107,60 @@ def test_tela_da_lista_de_materiais():
     assert not s.despachar("ui.vista_compras", {"vista": "x"})["ok"]
     s.despachar("ui.vista_compras", {"vista": "pedidos"})
     assert "da lista de materiais" in render(s)
+
+
+# ---------------------------------------------------------------- padrão construtivo
+def qtd(o, chave):
+    cod = chave.split(":")[0]
+    return next((x for x in sv.situacao_materiais(o, cod) if x["chave"] == chave), None)
+
+
+def test_lista_proporcional_ao_padrao():
+    obras = {p: sv.criar_obra("Casa", padrao=p) for p in ("R1-B", "R1-N", "R1-MA", "R1-A")}
+    # acabamentos crescem com o padrão
+    for chave in ("REV:ceramica", "LOU:luminaria", "ELE:disjuntor", "FOR:placa-st", "PIS:ac2"):
+        b, n, ma, a = (qtd(obras[p], chave)["necessario"] for p in ("R1-B", "R1-N", "R1-MA", "R1-A"))
+        assert b <= n <= ma <= a and b < a, chave
+    # estrutura não muda
+    for chave in ("ALV:bloco", "COB:telha", "EST:concreto", "FUN:aco10"):
+        assert len({qtd(o, chave)["necessario"] for o in obras.values()}) == 1, chave
+    # especificação muda
+    assert qtd(obras["R1-B"], "PIS:piso")["material"].startswith("Piso cerâmico")
+    assert "grande formato" in qtd(obras["R1-A"], "PIS:piso")["material"]
+    assert qtd(obras["R1-N"], "PIS:piso")["material"] == "Porcelanato 60×60 cm"
+    assert qtd(obras["R1-A"], "PIS:piso")["ajustado"] and not qtd(obras["R1-N"], "PIS:piso")["ajustado"]
+    # baixo padrão sem água quente encanada (chuveiro elétrico)
+    assert qtd(obras["R1-B"], "HID:ppr") is None and qtd(obras["R1-A"], "HID:ppr")["necessario"] == 45
+
+
+def test_medio_alto_fica_entre_normal_e_alto():
+    n = sv.criar_obra("N", padrao="R1-N")
+    ma = sv.criar_obra("MA", padrao="R1-MA")
+    a = sv.criar_obra("A", padrao="R1-A")
+    assert qtd(ma, "LOU:luminaria")["necessario"] == mt.quantidade(18 * 1.5, "un", 100)  # média 1 e 2
+    assert qtd(n, "ELE:cat6")["necessario"] < qtd(ma, "ELE:cat6")["necessario"] < qtd(a, "ELE:cat6")["necessario"]
+
+
+def test_personalizado_usa_padrao_mais_proximo():
+    assert mt.perfil_do_padrao("PERS", 2300) == "R1-B"
+    assert mt.perfil_do_padrao("PERS", 3200) == "R1-A"
+    assert mt.perfil_do_padrao("PERS", 0) == "R1-N"
+    o = sv.criar_obra("Casa", padrao="PERS", valor_m2="3.200")
+    assert "grande formato" in qtd(o, "PIS:piso")["material"]
+
+
+def test_trocar_padrao_atualiza_lista_e_mantem_pedidos():
+    s = Sistema(hoje=HOJE)
+    s.despachar("obra.criar", {"nome": "Casa", "padrao": "R1-N"})
+    o = s.obra
+    sv.solicitar_material(o, "PIS:piso", hoje=HOJE)  # 110 m² pedidos
+    base = {"nome": "Casa", "inicio": "", "fim_previsto": "", "area_construida": "100",
+            "orcamento_total": f"{o.orcamento_total:.2f}".replace(".", ","), "valor_m2": "2.690,33"}
+    assert s.despachar("obra.editar", {**base, "padrao": "R1-A"})["ok"]
+    linha = qtd(o, "PIS:piso")
+    assert linha["necessario"] == 116 and linha["pedido"] == 110 and linha["situacao"] == "Parcial"
+    s.despachar("ui.aba", {"aba": "compras"})
+    s.despachar("ui.vista_compras", {"vista": "materiais"})
+    s.despachar("ui.mat_expandir", {"codigo": "PIS"})
+    html = render(s)
+    assert "Alto (R1-A)" in html and "ajustado ao padrão" in html

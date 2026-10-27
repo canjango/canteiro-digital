@@ -179,7 +179,7 @@ _LISTA: dict[str, list[tuple]] = {
     "PIS": [
         ("cimento", "Cimento CP-II 50 kg (contrapiso)", "sc", 28, MAT),
         ("areia", "Areia média (contrapiso)", "m³", 4.5, MAT),
-        ("piso", "Piso cerâmico/porcelanato", "m²", 110, MAT),
+        ("piso", "Porcelanato 60×60 cm", "m²", 110, MAT),
         ("ac2", "Argamassa colante AC-II/AC-III (saco 20 kg)", "sc", 30, MAT),
         ("rejunte", "Rejunte", "kg", 25, MAT),
         ("rodape", "Rodapé", "m", 115, MAT),
@@ -263,13 +263,138 @@ MATERIAIS: dict[str, list[dict]] = {
 }
 
 
-def materiais_da_etapa(codigo: str) -> list[dict]:
-    return MATERIAIS.get(codigo, [])
+# ====================================================================== padrão construtivo
+# Estrutura, alvenaria e cobertura praticamente não mudam com o padrão; o que
+# muda são os acabamentos e as instalações (especificação e quantidade).
+# Para cada material afetado: padrão -> (fator sobre a quantidade de referência,
+# descrição da especificação ou None para manter). Fator 0 = item não se aplica.
+# O padrão normal (R1-N) é a referência (fator 1, descrição base).
+# Médio/alto (R1-MA) usa a média dos fatores entre normal e alto e a
+# especificação própria quando houver, senão a do alto.
+VARIACOES: dict[str, dict[str, tuple]] = {
+    # ---- instalações hidráulicas: água quente
+    "HID:ppr": {"R1-B": (0, None), "R1-A": (1.8, "Tubo PPR/CPVC 22 mm (água quente em todos os pontos)")},
+    "HID:reg-gaveta": {"R1-A": (1.3, None)},
+    "HID:reg-pressao": {"R1-B": (0.75, None), "R1-A": (1.5, None)},
+    "HID:conexoes-agua": {"R1-B": (0.9, None), "R1-A": (1.3, None)},
+    # ---- elétrica: mais pontos, automação e dados no alto padrão
+    "ELE:cabo15": {"R1-B": (0.85, None), "R1-A": (1.35, None)},
+    "ELE:cabo25": {"R1-B": (0.85, None), "R1-A": (1.25, None)},
+    "ELE:cabo4": {"R1-B": (0.7, None), "R1-A": (1.5, "Cabo flexível 4 mm² (ar-condicionado e forno)")},
+    "ELE:eletroduto34": {"R1-B": (0.85, None), "R1-A": (1.3, None)},
+    "ELE:caixa42": {"R1-B": (0.85, None), "R1-A": (1.3, None)},
+    "ELE:octogonal": {"R1-B": (0.8, None), "R1-A": (1.8, None)},
+    "ELE:quadro": {"R1-B": (1, "Quadro de distribuição 18 disjuntores"), "R1-A": (1, "Quadro de distribuição 36 disjuntores")},
+    "ELE:disjuntor": {"R1-B": (0.75, None), "R1-A": (1.5, None)},
+    "ELE:cat6": {"R1-B": (0.5, None), "R1-A": (2.5, "Cabo de rede Cat6 (pontos em todos os ambientes)")},
+    "ELE:coaxial": {"R1-A": (1.5, None)},
+    # ---- impermeabilização
+    "IMP:arg-polimerica": {"R1-B": (0.8, None), "R1-A": (1.4, "Argamassa polimérica/manta líquida (áreas molhadas, varanda e floreiras)")},
+    "IMP:tela-poliester": {"R1-A": (1.4, None)},
+    # ---- revestimento de parede
+    "REV:ceramica": {"R1-B": (0.6, "Revestimento cerâmico de parede (box, pia e tanque — meia parede)"),
+                     "R1-MA": (1.3, "Revestimento de parede retificado (banheiros até 2,20 m, cozinha e lavabo)"),
+                     "R1-A": (1.6, "Porcelanato/revestimento de parede retificado (banheiros até o teto, cozinha e lavabo)")},
+    "REV:ac1": {"R1-B": (0.6, None), "R1-A": (1.6, "Argamassa colante AC-III (saco 20 kg)")},
+    "REV:rejunte": {"R1-B": (0.6, None), "R1-A": (1.6, "Rejunte acrílico/epóxi")},
+    "REV:cantoneira": {"R1-B": (0.5, None), "R1-A": (1.5, "Perfil/cantoneira de alumínio para quinas e acabamentos")},
+    # ---- forro
+    "FOR:placa-st": {"R1-B": (0.3, None), "R1-A": (1.3, None)},
+    "FOR:placa-ru": {"R1-B": (1, None), "R1-A": (1.2, None)},
+    "FOR:perfil-f530": {"R1-B": (0.35, None), "R1-A": (1.35, None)},
+    "FOR:tabica": {"R1-B": (0.3, None), "R1-A": (1.6, "Perfil tabica e cortineiro")},
+    "FOR:pendural": {"R1-B": (0.35, None), "R1-A": (1.35, None)},
+    "FOR:parafuso": {"R1-B": (0.35, None), "R1-A": (1.35, None)},
+    "FOR:fita": {"R1-B": (0.35, None), "R1-A": (1.4, None)},
+    "FOR:massa": {"R1-B": (0.35, None), "R1-A": (1.4, None)},
+    # ---- pisos
+    "PIS:piso": {"R1-B": (1, "Piso cerâmico PEI-4 45×45 cm"),
+                 "R1-MA": (1.03, "Porcelanato retificado 80×80 cm"),
+                 "R1-A": (1.05, "Porcelanato retificado grande formato (90×90 cm ou maior)")},
+    "PIS:ac2": {"R1-B": (1, "Argamassa colante AC-II (saco 20 kg)"), "R1-A": (1.35, "Argamassa colante AC-III (saco 20 kg) — dupla colagem")},
+    "PIS:rodape": {"R1-B": (1, "Rodapé cerâmico 7 cm"), "R1-A": (1, "Rodapé de poliestireno/porcelanato 10 cm")},
+    "PIS:soleira": {"R1-A": (1.2, "Soleiras e peitoris de granito/mármore polido")},
+    "PIS:cunhas": {"R1-A": (1.5, "Sistema nivelador de porcelanato (clipes e cunhas)")},
+    # ---- esquadrias
+    "ESQ:porta-int": {"R1-B": (1, "Kit porta interna semioca (folha, batente e guarnição)"),
+                      "R1-A": (1, "Kit porta interna maciça laqueada, pronta para instalar")},
+    "ESQ:porta-ext": {"R1-B": (1, "Porta externa de madeira/aço linha popular"), "R1-A": (1, "Porta pivotante de entrada + porta de serviço")},
+    "ESQ:fechadura-int": {"R1-A": (1, "Fechadura interna linha superior")},
+    "ESQ:fechadura-ext": {"R1-A": (1, "Fechadura digital (entrada) e fechadura externa linha superior")},
+    "ESQ:janela-correr": {"R1-B": (1, "Janela de alumínio/aço de correr linha popular com vidro"),
+                          "R1-A": (1.2, "Esquadria de alumínio linha 30 com vidro laminado/insulado")},
+    "ESQ:janela-basculante": {"R1-A": (1, "Janela maxim-ar de alumínio linha 30")},
+    "ESQ:box": {"R1-A": (1, "Box de vidro temperado até o teto")},
+    # ---- louças, metais e acabamento elétrico
+    "LOU:bacia": {"R1-B": (1, "Bacia sanitária com caixa acoplada linha popular"),
+                  "R1-A": (1.5, "Bacia com caixa acoplada dual flush ou suspensa (inclui lavabo)")},
+    "LOU:assento": {"R1-A": (1.5, "Assento sanitário com amortecimento")},
+    "LOU:kit-bacia": {"R1-A": (1.5, None)},
+    "LOU:lavatorio": {"R1-A": (1.35, "Cubas de apoio/semiencaixe (banheiros e lavabo) e cuba de cozinha inox")},
+    "LOU:bancada": {"R1-B": (0.8, "Bancadas de granito simples"), "R1-A": (1.6, "Bancadas de quartzo/granito (cozinha, banheiros e lavabo)")},
+    "LOU:torneira": {"R1-B": (1, "Torneiras de linha popular"), "R1-A": (1.3, "Torneiras e misturadores monocomando")},
+    "LOU:chuveiro": {"R1-A": (1, "Misturador + ducha (aquecimento a gás ou solar)")},
+    "LOU:acab-registro": {"R1-B": (0.8, None), "R1-A": (1.4, None)},
+    "LOU:acessorios": {"R1-A": (1.5, "Kit de acessórios de banheiro em metal cromado")},
+    "LOU:modulo": {"R1-B": (0.85, None), "R1-A": (1.3, "Módulos de tomada e interruptor linha superior")},
+    "LOU:placa": {"R1-B": (0.85, None), "R1-A": (1.3, "Placas 4×2 e 4×4 linha superior")},
+    "LOU:luminaria": {"R1-B": (1, "Plafons/luminárias simples"), "R1-A": (2, "Luminárias, spots e perfis de LED (projeto luminotécnico)")},
+    "LOU:lampada": {"R1-B": (0.9, None), "R1-A": (1.8, None)},
+    # ---- pintura
+    "PIN:massa-corrida": {"R1-B": (0.5, "Massa corrida PVA (lata 25 kg) — salas e quartos")},
+    "PIN:tinta-int": {"R1-B": (1, "Tinta látex/acrílica econômica interna (lata 18 L)"),
+                      "R1-A": (1.2, "Tinta acrílica premium interna (lata 18 L)")},
+    "PIN:tinta-ext": {"R1-A": (1.2, "Tinta acrílica premium/textura externa (lata 18 L)")},
+    "PIN:esmalte": {"R1-A": (0.5, None)},  # portas laqueadas já vêm prontas
+    # ---- área externa
+    "EXT:portao-garagem": {"R1-B": (1, "Portão de garagem basculante/de correr simples"),
+                           "R1-A": (1, "Portão de garagem automatizado (com motor)")},
+    "EXT:grama": {"R1-B": (0.6, None), "R1-A": (1.6, "Grama e paisagismo (mudas e terra vegetal)")},
+    "EXT:dreno": {"R1-A": (1.5, None)},
+}
+
+PERFIS_MATERIAIS = ("R1-B", "R1-N", "R1-MA", "R1-A")
 
 
-def material(chave: str) -> dict:
+def perfil_do_padrao(padrao: str, valor_m2: float = 0.0) -> str:
+    """Perfil de especificação usado na lista. Personalizado usa o padrão de
+    valor por m² mais próximo."""
+    if padrao in PERFIS_MATERIAIS:
+        return padrao
+    from .padroes import valor_referencia
+
+    if not valor_m2:
+        return "R1-N"
+    return min(PERFIS_MATERIAIS, key=lambda c: abs(valor_referencia(c) - valor_m2))
+
+
+def _variacao(chave: str, perfil: str) -> tuple[float, str | None]:
+    v = VARIACOES.get(chave, {})
+    if perfil == "R1-N" or not v:
+        return 1.0, None
+    if perfil == "R1-MA" and "R1-MA" not in v:
+        fa, da = v.get("R1-A", (1.0, None))
+        return round((1.0 + fa) / 2, 3), da
+    return v.get(perfil, (1.0, None))
+
+
+def materiais_da_etapa(codigo: str, padrao: str = "R1-N", valor_m2: float = 0.0) -> list[dict]:
+    """Materiais da etapa já ajustados ao padrão construtivo (quantidade de
+    referência para 100 m² e especificação). Itens com fator 0 saem da lista."""
+    perfil = perfil_do_padrao(padrao, valor_m2)
+    lista = []
+    for m in MATERIAIS.get(codigo, []):
+        fator, desc = _variacao(m["chave"], perfil)
+        if fator <= 0:
+            continue
+        lista.append({**m, "qtd": round(m["qtd"] * fator, 4), "material": desc or m["material"],
+                      "fator_padrao": fator, "ajustado": fator != 1.0 or bool(desc)})
+    return lista
+
+
+def material(chave: str, padrao: str = "R1-N", valor_m2: float = 0.0) -> dict:
     etapa = chave.split(":", 1)[0]
-    for m in MATERIAIS.get(etapa, []):
+    for m in materiais_da_etapa(etapa, padrao, valor_m2):
         if m["chave"] == chave:
             return m
     raise KeyError(chave)
@@ -307,4 +432,11 @@ def validar() -> list[str]:
     for cod in CODIGOS:
         if not MATERIAIS.get(cod):
             problemas.append(f"Etapa sem materiais: {cod}")
+    chaves = {m["chave"] for itens in MATERIAIS.values() for m in itens}
+    for chave, var in VARIACOES.items():
+        if chave not in chaves:
+            problemas.append(f"Variação para material inexistente: {chave}")
+        for padrao, (fator, _desc) in var.items():
+            if padrao not in PERFIS_MATERIAIS or fator < 0 or fator > 3:
+                problemas.append(f"{chave}: variação inválida para {padrao}")
     return problemas

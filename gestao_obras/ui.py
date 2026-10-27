@@ -485,9 +485,21 @@ def render_materiais(sis: Sistema) -> str:
   <p class="nota">{total} materiais · <b>{pedidos}</b> já pedidos · {entregues} entregues · quantidades para {_num(o.area_construida)} m² (inclui perdas usuais).</p>
   {sel_etapa}
 </div>
+<p class="nota">Lista ajustada ao padrão <b>{esc(_rotulo_perfil(o))}</b>: especificação e quantidade de acabamentos e instalações
+mudam com o padrão (itens marcados “ajustado ao padrão”); estrutura, alvenaria e cobertura não mudam. Troque o padrão em <b>Obras</b>.</p>
 <p class="nota">Ao solicitar, o pedido entra em <b>Pedidos de compra</b> como “Solicitada”, com prazo de chegada 7 dias antes do início da etapa. O preço é informado na cotação.
-Quantidades são estimativas para casa térrea padrão normal; confira com o projeto executivo.</p>
+Quantidades são estimativas para casa térrea; confira com o projeto executivo.</p>
 <div class="mat-lista">{''.join(blocos)}</div>"""
+
+
+def _rotulo_perfil(o: Obra) -> str:
+    from .materiais import perfil_do_padrao
+
+    perfil = perfil_do_padrao(o.padrao, o.valor_m2)
+    nome = rotulo_padrao(perfil)
+    if o.padrao == "PERS":
+        return f"{nome} (mais próximo do valor personalizado de {an.moeda(o.valor_m2)}/m²)"
+    return nome
 
 
 def _bloco_materiais(sis: Sistema, o: Obra, e, linhas: list[dict], n_pend: int, n_ent: int, hoje) -> str:
@@ -540,7 +552,12 @@ def _linha_material(x: dict) -> str:
   <button class="btn btn-mini" type="submit">Solicitar</button></form>"""
     else:
         acao = ""
-    return (f'<tr><td>{esc(x["material"])}{f" <span class=tag-cat>{esc(x["categoria"])}</span>" if x["categoria"] != "Material" else ""}</td>'
+    tags = ""
+    if x["categoria"] != "Material":
+        tags += f' <span class="tag-cat">{esc(x["categoria"])}</span>'
+    if x.get("ajustado"):
+        tags += ' <span class="tag-padrao">ajustado ao padrão</span>'
+    return (f'<tr><td>{esc(x["material"])}{tags}</td>'
             f'<td class="num">{_num(x["necessario"])} {esc(x["un"])}</td><td>{status}</td><td>{acao}</td></tr>')
 
 

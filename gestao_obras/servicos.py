@@ -416,7 +416,7 @@ def situacao_materiais(obra: Obra, codigo: str) -> list[dict]:
     """Materiais da etapa com quantidade necessária (pela área) e o que já foi pedido."""
     obra.etapa(codigo)
     linhas = []
-    for m in mt.materiais_da_etapa(codigo):
+    for m in mt.materiais_da_etapa(codigo, obra.padrao, obra.valor_m2):
         necessario = mt.quantidade(m["qtd"], m["un"], obra.area_construida)
         compras = [c for c in obra.compras if c.material == m["chave"] and c.status != "Cancelada"]
         pedido = round(sum(c.quantidade for c in compras), 3)
@@ -448,7 +448,7 @@ def _prazo_material(obra: Obra, codigo: str, hoje: date) -> tuple[str, str]:
 def solicitar_material(obra: Obra, chave: str, quantidade=None, hoje: date | None = None) -> Compra:
     hoje = _hoje(hoje)
     try:
-        m = mt.material(chave)
+        m = mt.material(chave, obra.padrao, obra.valor_m2)
     except KeyError:
         raise ValidacaoErro("Material não encontrado na lista") from None
     codigo = chave.split(":", 1)[0]
