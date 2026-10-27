@@ -74,6 +74,15 @@
     }
   }
 
+  // janela de imagem: fecha com Esc ou clicando fora
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const f = app.querySelector("[data-fechar-modal]");
+    if (f) executar("ui.figura_fechar", {});
+  });
+  app.addEventListener("click", (e) => {
+    if (e.target.matches && e.target.matches("[data-fechar-modal]")) { executar("ui.figura_fechar", {}); return; }
+  });
   app.addEventListener("click", (e) => {
     const b = e.target.closest("button[data-action]");
     if (!b || b.type === "submit" || b.disabled) return;

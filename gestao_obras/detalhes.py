@@ -16,8 +16,9 @@ L, A = 480, 280  # viewBox
 class D:
     """Pequeno kit de desenho técnico."""
 
-    def __init__(self, pref: str):
+    def __init__(self, pref: str, largura: int = L, altura: int = A):
         self.p = pref
+        self.w, self.h = largura, altura
         self.el: list[str] = []
 
     # -- primitivas
@@ -77,7 +78,7 @@ class D:
 <pattern id="{p}-arg" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" class="dt-f-arg"/><circle cx="2" cy="2" r="0.6" class="dt-f-pt"/><circle cx="6" cy="6" r="0.6" class="dt-f-pt"/></pattern>
 <pattern id="{p}-ceramica" width="20" height="6" patternUnits="userSpaceOnUse"><rect width="20" height="6" class="dt-f-ceramica"/><line x1="19.5" y1="0" x2="19.5" y2="6" class="dt-f-tr"/></pattern>
 </defs>"""
-        return (f'<svg viewBox="0 0 {L} {A}" class="detalhe-svg" role="img" aria-label="{escape(titulo)}" '
+        return (f'<svg viewBox="0 0 {self.w} {self.h}" class="detalhe-svg" role="img" aria-label="{escape(titulo)}" '
                 f'xmlns="http://www.w3.org/2000/svg">{defs}{"".join(self.el)}</svg>')
 
 

@@ -25,6 +25,7 @@ from .modelos import (
 from . import assistente as ia
 from . import servicos as sv
 from .detalhes import detalhe
+from .figuras import figura as figura_item, tem_figura
 from .especificacoes import especificacao
 from .sistema import Sistema
 
@@ -114,6 +115,7 @@ def render(sis: Sistema) -> str:
 {render_topo(sis)}
 {render_mensagens(sis)}
 <main class="conteudo" id="conteudo">{corpo}</main>
+{render_figura(sis) if o else ""}
 <footer class="rodape">Canteiro Digital · núcleo em Python {esc(_versao())} · dados salvos automaticamente</footer>
 """
 
@@ -352,6 +354,7 @@ def _card_etapa(sis: Sistema, o: Obra, e, hoje) -> str:
         f'aria-pressed="{str(i.feito).lower()}"><span class="chk-caixa" aria-hidden="true"></span>'
         f'<span class="chk-txt">{esc(i.texto)}</span>'
         f'{f"<span class=chk-data>{an.data_br(i.concluido_em)}</span>" if i.feito else ""}</button>'
+        f'{botao(ICONE_IMAGEM, "ui.figura", "btn-fig", "Ver imagem de referência", codigo=e.codigo, item=i.id) if tem_figura(i.texto) else ""}'
         f'{botao("×", "etapa.remover_item", "btn-x", "Remover item", codigo=e.codigo, item=i.id)}</li>'
         for i in e.checklist
     )
@@ -438,9 +441,6 @@ def _detalhes_etapa(o: Obra, e) -> str:
              f'<ul class="espec-lista">{"".join(itens)}</ul>'
              f'<p class="nota">Toque em um serviço para ver especificação, execução e critério de aceitação. '
              f'Quantidades estimadas; o projeto e o memorial descritivo prevalecem.</p></div>') if itens else ""
-    fig = detalhe(e.codigo)
-    figura = (f'<figure class="det-bloco det-largo detalhe">{fig[0]}'
-              f'<figcaption>Detalhe de referência: {esc(fig[1])} · desenho esquemático, sem escala</figcaption></figure>') if fig else ""
     seq = ", ".join(_nome_etapa(o, p) for p in e.predecessoras) or "início da obra"
     prazo = f"{e.duracao_dias} dias úteis (típico)" if e.duracao_dias else "—"
     equipe = (f'<div class="det-bloco"><h4>Equipe e prazo</h4><dl class="det-dl">'
@@ -449,7 +449,8 @@ def _detalhes_etapa(o: Obra, e) -> str:
     atencao = "".join(f"<li>{esc(a)}</li>" for a in e.atencao)
     atencao = f'<div class="det-bloco det-atencao"><h4>Pontos de atenção</h4><ul>{atencao}</ul></div>' if atencao else ""
     desc = f'<p class="etapa-desc">{esc(e.descricao)}</p>' if e.descricao else ""
-    return f'{desc}<div class="det-grade">{figura}{quant}{equipe}{atencao}</div>'
+    ver_detalhe = botao(f"{ICONE_IMAGEM} Detalhe técnico da etapa", "ui.figura", "btn btn-sec btn-mini", codigo=e.codigo, item="_etapa") if detalhe(e.codigo) else ""
+    return f'{desc}<div class="linha-acoes">{ver_detalhe}</div><div class="det-grade">{quant}{equipe}{atencao}</div>'
 
 
 # ======================================================================= compras
@@ -964,3 +965,44 @@ def config_ia(sis: Sistema) -> str:
   </form>
   {acoes}
 </section>"""
+
+
+# ======================================================================= imagem de referência (janela)
+ICONE_IMAGEM = ('<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" class="ico">'
+                '<rect x="2.5" y="4" width="15" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/>'
+                '<circle cx="7.5" cy="8.5" r="1.6" fill="currentColor"/>'
+                '<path d="M3.5 14.5l4.5-4 3 2.5 2.5-2 3 3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>')
+
+
+def render_figura(sis: Sistema) -> str:
+    f = sis.ui.get("figura")
+    if not f:
+        return ""
+    o = sis.obra
+    try:
+        etapa = o.etapa(f["codigo"])
+    except ValueError:
+        return ""
+    if f["item"] == "_etapa":
+        par = detalhe(etapa.codigo)
+        if not par:
+            return ""
+        svg, titulo = par
+        rotulo = f"{etapa.nome} · detalhe técnico"
+    else:
+        item = next((i for i in etapa.checklist if i.id == f["item"]), None)
+        svg = figura_item(item.texto) if item else None
+        if not svg:
+            return ""
+        titulo, rotulo = item.texto, f"{etapa.nome} · item do checklist"
+    return f"""
+<div class="modal-fundo" data-fechar-modal="1">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="{esc(titulo)}">
+    <div class="modal-cab">
+      <div><p class="modal-sub">{esc(rotulo)}</p><h2>{esc(titulo)}</h2></div>
+      {botao("×", "ui.figura_fechar", "btn-x btn-fechar", "Fechar imagem")}
+    </div>
+    {svg}
+    <p class="nota">Desenho esquemático de referência, sem escala. O projeto executivo prevalece.</p>
+  </div>
+</div>"""

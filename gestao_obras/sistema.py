@@ -39,6 +39,7 @@ class Sistema:
             "ia_em_andamento": None,  # {id, obra, escopo, codigo, foco}
             "rev_aberta": "",         # revisão antiga expandida
             "compras_vista": "pedidos",  # "pedidos" ou "materiais"
+            "figura": None,           # imagem de referência aberta: {"codigo", "item"} ("_etapa" = detalhe da etapa)
             "mat_abertas": [],        # etapas abertas na lista de materiais
         }
         self.pedido_ia: dict | None = None  # pedido a enviar para a Claude (lido pela camada web)
@@ -113,6 +114,18 @@ class Sistema:
             raise ValidacaoErro("Aba inválida")
         self.ui["aba"] = aba
         self.ui["confirmar_exclusao"] = ""
+        self.ui["figura"] = None
+
+    def _a_ui_figura(self, d):
+        o = self._obra_ativa()
+        etapa = o.etapa(d.get("codigo", ""))
+        item = d.get("item", "")
+        if item != "_etapa" and not any(i.id == item for i in etapa.checklist):
+            raise ValidacaoErro("Item de checklist não encontrado")
+        self.ui["figura"] = {"codigo": etapa.codigo, "item": item}
+
+    def _a_ui_figura_fechar(self, d):
+        self.ui["figura"] = None
 
     def _a_ui_expandir(self, d):
         cod = d.get("codigo", "")
@@ -144,6 +157,7 @@ class Sistema:
             raise ValidacaoErro("Obra não encontrada")
         self.ui["obra"] = d["id"]
         self.ui["abertas"] = []
+        self.ui["figura"] = None
         self.ui["filtro_etapa"] = ""
         self.ui["confirmar_exclusao"] = ""
         if self.ui["aba"] == "obras":

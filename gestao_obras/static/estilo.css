@@ -400,3 +400,65 @@ input, select, textarea { padding: 7px 9px; border: 1px solid var(--linha); bord
 @media (max-width: 520px) { .espec-corpo { grid-template-columns: 1fr; } .espec-corpo dd { margin-bottom: 6px; } }
 .espec-simples { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 6px 0 6px 14px; font-size: 0.9rem; border-bottom: 1px solid var(--linha); }
 .det-bloco.detalhe { background: var(--superficie); padding: 0; }
+
+/* ----- botão e janela da imagem de referência */
+.btn-fig { border: 1px solid var(--linha); background: var(--superficie); color: var(--acento); cursor: pointer; border-radius: var(--raio);
+  width: 34px; height: 34px; display: inline-grid; place-items: center; flex: none; }
+.btn-fig:hover { border-color: var(--acento); background: var(--info-bg); }
+.btn-fig .ico, .btn .ico { display: block; }
+.btn .ico { display: inline-block; vertical-align: -3px; margin-right: 4px; }
+.modal-fundo { position: fixed; inset: 0; z-index: 50; background: rgba(10, 16, 13, 0.55); display: grid; place-items: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.modal { background: var(--superficie); border-radius: 10px; border: 1px solid var(--linha); width: min(560px, 100%); max-height: 100%; overflow: auto;
+  padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3); }
+.modal-cab { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.modal-cab h2 { font-size: 1.05rem; margin: 0; }
+.modal-sub { margin: 0 0 2px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tinta-2); }
+.btn-fechar { font-size: 1.5rem; line-height: 1; }
+.modal .detalhe-svg { max-width: 100%; }
+
+/* ----- figuras dos itens de checklist */
+.dt-papel { fill: var(--superficie); stroke: var(--tinta); stroke-width: 1.3; }
+.dt-cabecalho { fill: var(--critico-bg); stroke: var(--tinta); stroke-width: 1.3; }
+.dt-carimbo { fill: none; stroke: var(--ok); stroke-width: 2; }
+.dt-txt-carimbo { fill: var(--ok); font-size: 10px; font-weight: 800; letter-spacing: 0.06em; }
+.dt-txt-grande { fill: var(--tinta); font-size: 30px; font-weight: 800; }
+.dt-txt-alerta { fill: var(--critico); font-size: 10.5px; font-weight: 600; }
+.dt-curva { fill: none; stroke: var(--atencao); stroke-width: 1.2; }
+.dt-instrumento { fill: var(--superficie-2); stroke: var(--tinta); stroke-width: 1.3; }
+.dt-visor { fill: var(--ok-bg); stroke: var(--tinta-2); }
+.dt-bolha { fill: var(--ok-bg); stroke: var(--tinta-2); }
+.dt-laser { stroke: var(--critico); stroke-width: 1.2; stroke-dasharray: 8 3; }
+.dt-fio-prumo { stroke: var(--tinta-2); stroke-width: 1; }
+.dt-prumo { fill: var(--tinta); stroke: var(--tinta); }
+.dt-relogio { fill: var(--superficie); stroke: var(--tinta); stroke-width: 1.5; }
+.dt-agua-fill { fill: var(--info-bg); stroke: none; }
+.dt-tubo-grosso { stroke: var(--info); stroke-width: 6; stroke-linecap: round; fill: none; }
+.dt-tampao { fill: var(--tinta-2); stroke: var(--tinta); }
+.dt-base { fill: var(--tinta-2); stroke: none; }
+.dt-espacador { fill: var(--sinal); stroke: var(--tinta); }
+.dt-rasgo-ok { fill: var(--ok-bg); stroke: var(--ok); stroke-width: 1.5; }
+.dt-rasgo-nao { fill: var(--critico-bg); stroke: var(--critico); stroke-width: 1.5; }
+.dt-x { stroke: var(--critico); stroke-width: 2.5; }
+.dt-destaque { fill: none; stroke: var(--critico); stroke-width: 2.5; }
+.dt-caixa-agua { fill: var(--info-bg); stroke: var(--tinta); stroke-width: 1.5; }
+.dt-poste { stroke: var(--tinta-2); stroke-width: 6; }
+.dt-terra, .dt-fio-terra { stroke: var(--ok); stroke-width: 3; }
+.dt-haste { stroke: var(--atencao); stroke-width: 4; }
+.dt-fio-fase { stroke: var(--critico); stroke-width: 4; fill: none; }
+.dt-fio-neutro { stroke: var(--info); stroke-width: 4; fill: none; }
+.dt-fio-retorno { stroke: var(--tinta-2); stroke-width: 4; fill: none; }
+.dt-eletroduto { stroke: var(--atencao); stroke-width: 3; fill: none; stroke-dasharray: 2 2; }
+.dt-regua { fill: var(--sinal); stroke: var(--tinta); }
+.dt-cabo-martelo { stroke: var(--atencao); stroke-width: 4; }
+.dt-martelo { fill: var(--tinta-2); stroke: var(--tinta); }
+.dt-cordao { fill: var(--tinta-2); stroke: none; }
+.dt-selante { fill: none; stroke: var(--critico); stroke-width: 3; stroke-dasharray: 4 2; }
+.dt-ferragem { fill: var(--tinta-2); stroke: var(--tinta); }
+.dt-passo-atual { fill: var(--sinal); stroke: var(--tinta); stroke-width: 2; }
+.dt-lona { stroke: var(--info); stroke-width: 3; fill: none; }
+.dt-planta { fill: var(--ok-bg); stroke: var(--ok); stroke-width: 1.5; }
+.dt-placa-num { fill: var(--superficie); stroke: var(--tinta); stroke-width: 1.5; }
+.dt-check { fill: var(--ok-bg); stroke: var(--ok); }
+.dt-check-marca { fill: none; stroke: var(--ok); stroke-width: 1.8; }
+.dt-seta-fill { fill: var(--acento); stroke: var(--acento); }
