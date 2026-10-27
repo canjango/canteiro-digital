@@ -24,6 +24,8 @@ from .modelos import (
 )
 from . import assistente as ia
 from . import servicos as sv
+from .detalhes import detalhe
+from .especificacoes import especificacao
 from .sistema import Sistema
 
 
@@ -419,14 +421,26 @@ def _detalhes_etapa(o: Obra, e) -> str:
     if not (e.descricao or e.servicos or e.equipe or e.atencao):
         return ""
     area = o.area_construida or 100
-    linhas = "".join(
-        f'<tr><td>{esc(s.get("servico", ""))}</td><td class="num">{qtd_escalada(float(s.get("qtd", 0)), s.get("un", ""), area)}</td>'
-        f'<td>{esc(s.get("un", ""))}</td></tr>'
-        for s in e.servicos
-    )
-    quant = (f'<div class="det-bloco det-largo"><h4>Serviços e quantitativos de referência · {_num(area)} m²</h4>'
-             f'<div class="tabela-wrap"><table class="tabela tabela-compacta"><tbody>{linhas}</tbody></table></div>'
-             f'<p class="nota">Estimativa para planejamento; confirme com o projeto e o orçamento executivo.</p></div>') if linhas else ""
+    itens = []
+    for sv_ in e.servicos:
+        nome = sv_.get("servico", "")
+        qtd = f'{qtd_escalada(float(sv_.get("qtd", 0)), sv_.get("un", ""), area)} {esc(sv_.get("un", ""))}'
+        spec = especificacao(e.codigo, nome)
+        if spec:
+            itens.append(
+                f'<li><details><summary><span>{esc(nome)}</span><span class="qtd">{qtd}</span></summary>'
+                f'<dl class="espec-corpo"><dt>Especificação</dt><dd>{esc(spec["especificacao"])}</dd>'
+                f'<dt>Execução</dt><dd>{esc(spec["execucao"])}</dd>'
+                f'<dt>Aceitação</dt><dd>{esc(spec["aceitacao"])}</dd></dl></details></li>')
+        else:
+            itens.append(f'<li><div class="espec-simples"><span>{esc(nome)}</span><span class="qtd">{qtd}</span></div></li>')
+    quant = (f'<div class="det-bloco det-largo"><h4>Serviços, quantitativos e especificações técnicas · {_num(area)} m²</h4>'
+             f'<ul class="espec-lista">{"".join(itens)}</ul>'
+             f'<p class="nota">Toque em um serviço para ver especificação, execução e critério de aceitação. '
+             f'Quantidades estimadas; o projeto e o memorial descritivo prevalecem.</p></div>') if itens else ""
+    fig = detalhe(e.codigo)
+    figura = (f'<figure class="det-bloco det-largo detalhe">{fig[0]}'
+              f'<figcaption>Detalhe de referência: {esc(fig[1])} · desenho esquemático, sem escala</figcaption></figure>') if fig else ""
     seq = ", ".join(_nome_etapa(o, p) for p in e.predecessoras) or "início da obra"
     prazo = f"{e.duracao_dias} dias úteis (típico)" if e.duracao_dias else "—"
     equipe = (f'<div class="det-bloco"><h4>Equipe e prazo</h4><dl class="det-dl">'
@@ -435,7 +449,7 @@ def _detalhes_etapa(o: Obra, e) -> str:
     atencao = "".join(f"<li>{esc(a)}</li>" for a in e.atencao)
     atencao = f'<div class="det-bloco det-atencao"><h4>Pontos de atenção</h4><ul>{atencao}</ul></div>' if atencao else ""
     desc = f'<p class="etapa-desc">{esc(e.descricao)}</p>' if e.descricao else ""
-    return f'{desc}<div class="det-grade">{quant}{equipe}{atencao}</div>'
+    return f'{desc}<div class="det-grade">{figura}{quant}{equipe}{atencao}</div>'
 
 
 # ======================================================================= compras

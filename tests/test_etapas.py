@@ -71,7 +71,7 @@ def test_quantitativos_escalam_pela_area():
     s.despachar("obra.criar", {"nome": "Casa 150", "area_construida": "150"})
     s.despachar("ui.expandir", {"codigo": "ALV"})
     html = render(s)
-    assert "· 150 m²" in html and ">7.500<" in html
+    assert "· 150 m²" in html and ">7.500 un<" in html
 
 
 def test_area_invalida():
