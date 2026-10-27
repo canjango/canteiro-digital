@@ -52,7 +52,7 @@
     try {
       if (nome === "ia.cancelar" && window.Backend.cancelarIa) window.Backend.cancelarIa();
       const r = await window.Backend.acao(nome, dados);
-      const trocaTela = nome === "ui.aba" || nome === "obra.selecionar" || nome === "obra.criar" || nome === "obra.exemplo";
+      const trocaTela = nome === "ui.aba" || nome === "ui.fase_ir" || nome === "obra.selecionar" || nome === "obra.criar" || nome === "obra.exemplo";
       // ao trocar de tela ou quando a ação falha, o formulário enviado mantém o que foi digitado
       pintar(r.html, { topo: trocaTela && r.ok, enviado: r.ok ? enviado : null });
       if (window.Backend.persistir) window.Backend.persistir(r.gravar || [], r.remover || []);

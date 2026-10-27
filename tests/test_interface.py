@@ -165,3 +165,24 @@ def test_orcamento_digitado_com_ponto_de_milhar(sis):
     d["orcamento_total"] = "300.000,00"
     assert sis.despachar("obra.editar", d)["ok"] and o.orcamento_total == 300000
     assert 'type="number"' not in render(sis)
+
+
+def test_etapas_mestre_detalhe_e_fases(sis):
+    sis.despachar("ui.aba", {"aba": "etapas"})
+    html = render(sis)
+    assert 'class="md-lista' in html and 'class="chevrons"' in html
+    sis.despachar("ui.expandir", {"codigo": "ALV"})
+    sis.despachar("ui.expandir", {"codigo": "ALV"})  # tocar de novo mantém selecionada
+    assert sis.ui["abertas"] == ["ALV"]
+    r = sis.despachar("ui.fase_ir", {"fase": "Instalações"})
+    assert r["ok"] and sis.ui["fase"] == "Instalações" and sis.obra.etapa(sis.ui["abertas"][0]).categoria == "Instalações"
+    html = render(sis)
+    assert 'data-codigo="PRE"' not in html.split('class="md-detalhe')[0]  # lista filtrada pela fase
+    sis.despachar("ui.fase", {"fase": ""})
+    assert sis.ui["fase"] == ""
+    assert not sis.despachar("ui.fase_ir", {"fase": "Inexistente"})["ok"]
+
+
+def test_painel_tem_trilho_e_setas(sis):
+    html = render(sis)
+    assert 'class="trilho"' in html and 'data-action="ui.fase_ir"' in html

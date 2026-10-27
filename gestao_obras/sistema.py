@@ -24,7 +24,8 @@ class Sistema:
         self.ui = {
             "obra": "",
             "aba": "painel",
-            "abertas": [],          # etapas expandidas
+            "abertas": [],          # etapa selecionada na tela de etapas (a última da lista)
+            "fase": "",             # filtro de fase (categoria) na tela de etapas
             "filtro_compra": "abertas",
             "filtro_etapa": "",
             "form_compra": False,
@@ -130,11 +131,36 @@ class Sistema:
     def _a_ui_expandir(self, d):
         cod = d.get("codigo", "")
         self._obra_ativa().etapa(cod)  # valida
-        abertas = self.ui["abertas"]
-        if cod in abertas:
-            abertas.remove(cod)
-        else:
-            abertas.append(cod)
+        # mestre-detalhe: tocar numa etapa a seleciona (painel da direita)
+        self.ui["abertas"] = [cod]
+
+    def _a_ui_fase(self, d):
+        from .etapas import CATEGORIAS
+
+        fase = d.get("fase", "")
+        if fase and fase not in CATEGORIAS:
+            raise ValidacaoErro("Fase inválida")
+        self.ui["fase"] = "" if fase == self.ui["fase"] else fase
+
+    def _a_ui_fase_ir(self, d):
+        """Seta de fase: abre a tela de etapas filtrada na fase, com a primeira etapa pendente dela."""
+        from .etapas import CATEGORIAS
+        from . import analise as an
+
+        o = self._obra_ativa()
+        fase = d.get("fase", "")
+        if fase not in CATEGORIAS:
+            raise ValidacaoErro("Fase inválida")
+        if self.ui["aba"] == "etapas" and self.ui["fase"] == fase:
+            self.ui["fase"] = ""
+            return
+        self.ui["aba"] = "etapas"
+        self.ui["fase"] = fase
+        self.ui["figura"] = None
+        etapas = [e for e in o.etapas if e.categoria == fase]
+        pend = [e for e in etapas if not an.etapa_concluida(e)]
+        if pend or etapas:
+            self.ui["abertas"] = [(pend or etapas)[0].codigo]
 
     def _a_ui_filtro(self, d):
         if "filtro_compra" in d:
@@ -157,6 +183,7 @@ class Sistema:
             raise ValidacaoErro("Obra não encontrada")
         self.ui["obra"] = d["id"]
         self.ui["abertas"] = []
+        self.ui["fase"] = ""
         self.ui["figura"] = None
         self.ui["filtro_etapa"] = ""
         self.ui["confirmar_exclusao"] = ""

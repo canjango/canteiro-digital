@@ -103,6 +103,43 @@ def pill(texto: str) -> str:
     return f'<span class="pill pill-{SLUG.get(texto, "neutro")}">{esc(texto)}</span>'
 
 
+# ======================================================================= ícones
+def _ico(caminho: str, tam: int = 20) -> str:
+    return (f'<svg viewBox="0 0 24 24" width="{tam}" height="{tam}" aria-hidden="true" class="ico" fill="none" '
+            f'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{caminho}</svg>')
+
+
+ICONES = {
+    "painel": '<rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1"/>',
+    "etapas": '<rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M9 3.5v2h6v-2"/><path d="M8.5 11l2 2 4-4"/><path d="M8.5 16.5h7"/>',
+    "compras": '<path d="M3.5 4.5h2.2l2.1 10.2h10.4l2-7.2H6.6"/><circle cx="9.5" cy="18.7" r="1.3"/><circle cx="16.5" cy="18.7" r="1.3"/>',
+    "tarefas": '<rect x="3.5" y="4" width="17" height="16" rx="1.5"/><path d="M9.5 4v16M15 4v16"/><path d="M5.5 8h2M11 8h2.5M16.5 8h2M5.5 11.5h2M11 11.5h2.5"/>',
+    "obras": '<path d="M3.5 20.5h17"/><path d="M5.5 20.5V9l6.5-4.5 6.5 4.5v11.5"/><path d="M10 20.5v-5h4v5"/><path d="M9 11h1.5M13.5 11H15"/>',
+    "bandeira": '<path d="M5.5 21V4"/><path d="M5.5 4.5h11l-2 3.5 2 3.5h-11"/>',
+    "calendario": '<rect x="3.5" y="5" width="17" height="15" rx="1.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>',
+    "seta": '<path d="M9 6l6 6-6 6"/>',
+    "baixo": '<path d="M6 9l6 6 6-6"/>',
+    "lixo": '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+    "check": '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    "filtro": '<path d="M4 5h16l-6.2 7.3V19l-3.6-2v-4.7z"/>',
+    "mais": '<path d="M12 5v14M5 12h14"/>',
+}
+
+
+def ico(nome: str, tam: int = 18) -> str:
+    return _ico(ICONES[nome], tam)
+
+
+# cor de cada fase (quadradinho colorido na lista de etapas, como as disciplinas de um projeto)
+COR_FASE = {
+    "Preparação": "#8d6e4f", "Infraestrutura": "#e0782f", "Supraestrutura": "#c8372d",
+    "Vedação e cobertura": "#2f9a58", "Instalações": "#2c87d0", "Acabamentos": "#7e3fa0", "Entrega": "#d9b40f",
+}
+
+TITULOS = {"painel": "Painel da obra", "etapas": "Etapas construtivas", "compras": "Compras e materiais",
+           "tarefas": "Tarefas", "obras": "Obras"}
+
+
 # ======================================================================= raiz
 def render(sis: Sistema) -> str:
     o = sis.obra
@@ -112,11 +149,16 @@ def render(sis: Sistema) -> str:
         "tarefas": render_tarefas, "obras": render_obras,
     }[aba](sis)
     return f"""
+<div class="app">
+{render_trilho(sis)}
+<div class="principal">
 {render_topo(sis)}
 {render_mensagens(sis)}
-<main class="conteudo" id="conteudo">{corpo}</main>
-{render_figura(sis) if o else ""}
+<main class="conteudo conteudo-{aba}" id="conteudo">{corpo}</main>
 <footer class="rodape">Canteiro Digital · núcleo em Python {esc(_versao())} · dados salvos automaticamente</footer>
+</div>
+</div>
+{render_figura(sis) if o else ""}
 """
 
 
@@ -125,32 +167,49 @@ def _versao() -> str:
     return __version__
 
 
-def render_topo(sis: Sistema) -> str:
+def render_trilho(sis: Sistema) -> str:
     o = sis.obra
     abas = [("painel", "Painel"), ("etapas", "Etapas"), ("compras", "Compras"), ("tarefas", "Tarefas"), ("obras", "Obras")]
     ativa = sis.ui["aba"] if o else "obras"
     nav = "".join(
-        f'<button type="button" class="aba{" ativa" if k == ativa else ""}" data-action="ui.aba" data-aba="{k}"'
-        f'{"" if o or k == "obras" else " disabled"}{" aria-current=page" if k == ativa else ""}>{r}{_contador(sis, k)}</button>'
+        f'<button type="button" class="aba{" ativa" if k == ativa else ""}" data-action="ui.aba" data-aba="{k}" title="{r}"'
+        f'{"" if o or k == "obras" else " disabled"}{" aria-current=page" if k == ativa else ""}>'
+        f'{ico(k, 21)}<span class="aba-rot">{r}</span>{_contador(sis, k)}</button>'
         for k, r in abas
     )
+    return f"""
+<nav class="trilho" aria-label="Seções">
+  <div class="trilho-marca" title="Canteiro Digital"><span class="marca-ico" aria-hidden="true"></span></div>
+  {nav}
+</nav>"""
+
+
+def render_topo(sis: Sistema) -> str:
+    o = sis.obra
+    aba = sis.ui["aba"] if o else "obras"
     if o:
         seletor = (f'<select id="sel-obra" class="sel-obra" data-action="obra.selecionar" name="id" aria-label="Obra ativa">'
                    + opcoes([x.id for x in _ordenadas(sis)], o.id, [x.nome for x in _ordenadas(sis)]) + "</select>")
+        padrao_txt = PADROES.get(o.padrao, {}).get("nome", o.padrao).lower()
         meta = " · ".join(esc(x) for x in (o.cliente, o.endereco, f"{_num(o.area_construida)} m²",
-                                          f"padrão {PADROES.get(o.padrao, {}).get('nome', o.padrao).lower()} · {an.moeda(o.valor_m2)}/m²") if x)
+                                          f"padrão {padrao_txt} · {an.moeda(o.valor_m2)}/m²") if x)
         datas = f"{an.data_br(o.inicio)} → {an.data_br(o.fim_previsto)}" if o.inicio else "sem cronograma"
-        info = f'<p class="topo-meta">{meta}{" · " if meta else ""}{datas}{" · <b>exemplo</b>" if o.exemplo else ""}</p>'
+        info = f'<p class="topo-meta">{meta}{" · " if meta else ""}{datas}</p>'
+        selo = f'<span class="selo">{"EXEMPLO · " if o.exemplo else ""}{esc(o.padrao)}</span>'
+        trilha = (f'<button type="button" class="migalha-link" data-action="ui.aba" data-aba="obras">Obras</button>'
+                  f'<span class="migalha-sep" aria-hidden="true">›</span><span class="migalha-atual">{esc(o.nome)}</span>{selo}')
     else:
-        seletor, info = '<span class="sel-obra vazio">Nenhuma obra</span>', ""
+        seletor, info, trilha = '<span class="sel-obra vazio">Nenhuma obra</span>', "", '<span class="migalha-atual">Obras</span>'
     return f"""
 <header class="topo">
   <div class="topo-linha">
-    <div class="marca"><span class="marca-ico" aria-hidden="true"></span><span>Canteiro Digital</span></div>
-    {seletor}
+    <div class="topo-tit">
+      <p class="migalha">{trilha}</p>
+      <h1>{TITULOS[aba]}</h1>
+    </div>
+    <div class="topo-dir">{seletor}</div>
   </div>
   {info}
-  <nav class="abas" aria-label="Seções">{nav}</nav>
 </header>"""
 
 
@@ -266,7 +325,11 @@ def render_painel(sis: Sistema) -> str:
         f'<td class="num {"neg" if tot["saldo"] < 0 else ""}">{an.moeda(tot["saldo"])}</td></tr>'
     )
 
+    atual = next((c for c, g in r["fases"].items() if g["progresso"] < 1), None)
+    trilha = chevrons([(cat, pct(g["progresso"]), "feita" if g["progresso"] >= 1 else "atual" if cat == atual else "",
+                        {"fase": cat}) for cat, g in r["fases"].items()], "ui.fase_ir")
     return f"""
+<section class="folha folha-fases">{trilha}</section>
 {kpis}
 {bloco_ia(sis, o, "obra")}
 <div class="grade-2">
@@ -302,84 +365,148 @@ def render_painel(sis: Sistema) -> str:
 
 
 # ======================================================================= etapas
+def chevrons(passos, acao: str) -> str:
+    """Faixa de fases em seta (Levantamento → … → Liberado), com a fase atual destacada."""
+    out = []
+    for rotulo, sub, estado, dados in passos:
+        extra = " ".join(f'data-{k}="{esc(v)}"' for k, v in dados.items())
+        marca = ico("check", 14) if estado == "feita" else ""
+        out.append(f'<button type="button" class="chev{" chev-" + estado if estado else ""}" data-action="{acao}" {extra}>'
+                   f'<span class="chev-rot">{marca}{esc(rotulo)}</span><span class="chev-sub">{esc(sub)}</span></button>')
+    return f'<nav class="chevrons" aria-label="Fases da obra">{"".join(out)}</nav>'
+
+
+def etapa_selecionada(sis: Sistema, o: Obra):
+    for cod in reversed(sis.ui["abertas"]):
+        try:
+            return o.etapa(cod)
+        except ValueError:
+            continue
+    pend = [e for e in o.etapas if not an.etapa_concluida(e)]
+    return (pend or o.etapas or [None])[0]
+
+
 def render_etapas(sis: Sistema) -> str:
     o, hoje = sis.obra, sis.hoje
-    grupos = []
-    for cat in CATEGORIAS:
-        etapas = [e for e in o.etapas if e.categoria == cat]
-        if not etapas:
-            continue
-        cards = "".join(_card_etapa(sis, o, e, hoje) for e in etapas)
-        grupos.append(f'<section class="fase"><h2 class="fase-tit">{esc(cat)}</h2>{cards}</section>')
-    replanejar = (botao("Recalcular cronograma", "obra.replanejar", "btn btn-sec")
-                  if o.inicio and o.fim_previsto else "")
+    sel = etapa_selecionada(sis, o)
+    fase = sis.ui.get("fase", "")
     banner = ""
     if o.modelo_etapas < MODELO_VERSAO:
         banner = f"""
-<section class="cartao banner-modelo">
+<section class="folha banner-modelo">
   <h2>Modelo de etapas revisado para residência de 100 m²</h2>
   <p>Sequência corrigida (alvenaria em paralelo com a estrutura), pesos de custo revisados, novos itens de checklist e cronograma pela duração típica de cada etapa.
   Itens já marcados, itens que você criou, observações e orçamentos ajustados à mão são mantidos. Como entram itens novos, a porcentagem de avanço pode baixar.</p>
   <div class="linha-acoes">{botao("Aplicar modelo revisado", "obra.atualizar_modelo", "btn")}</div>
 </section>"""
+
+    # lista (mestre)
+    grupos = []
+    for cat in CATEGORIAS:
+        if fase and cat != fase:
+            continue
+        etapas = [e for e in o.etapas if e.categoria == cat]
+        if not etapas:
+            continue
+        linhas = "".join(
+            f'<button type="button" class="md-item{" ativo" if sel and e.codigo == sel.codigo else ""}" data-action="ui.expandir" '
+            f'data-codigo="{esc(e.codigo)}" aria-expanded="{str(bool(sel and e.codigo == sel.codigo)).lower()}">'
+            f'<span class="cor" style="--cor:{COR_FASE.get(cat, "#888")}"></span><span class="md-cod">{esc(e.codigo)}</span>'
+            f'<span class="md-nome">{esc(e.nome)}</span>'
+            f'<span class="md-pct md-{SLUG.get(an.status_etapa(o, e, hoje), "")}">{pct(an.progresso_etapa(e))}</span></button>'
+            for e in etapas
+        )
+        grupos.append(f'<div class="md-grupo"><p class="md-grupo-tit">{esc(cat)}</p>{linhas}</div>')
+    filtro = (f'<button type="button" class="chip ativo" data-action="ui.fase" data-fase="">{ico("filtro", 14)} {esc(fase)} '
+              f'<span class="chip-x" aria-hidden="true">×</span></button>' if fase else "")
+
+    # faixa de fases
+    progresso = {c: [] for c in CATEGORIAS}
+    for e in o.etapas:
+        progresso.setdefault(e.categoria, []).append(e)
+    passos = []
+    for cat in CATEGORIAS:
+        es = progresso.get(cat) or []
+        if not es:
+            continue
+        prog = sum(an.progresso_etapa(e) * (e.peso or 1) for e in es) / (sum(e.peso or 1 for e in es) or 1)
+        estado = "atual" if (fase == cat or (not fase and sel and sel.categoria == cat)) else "feita" if prog >= 1 else ""
+        passos.append((cat, pct(prog), estado, {"fase": cat}))
+
+    detalhe_html = _card_etapa(sis, o, sel, hoje) if sel else '<p class="vazio-txt">Nenhuma etapa.</p>'
     return f"""
 {banner}
-<div class="barra-acoes">
-  <p class="nota">Toque em uma etapa para ver escopo, quantitativos, checklist e observações. Etapas só ficam “Liberadas” quando as predecessoras terminam.</p>
-  {replanejar}
-</div>
-{''.join(grupos)}"""
+<div class="md">
+  <aside class="md-lista folha" aria-label="Etapas da obra">
+    <div class="md-lista-cab"><span>Etapas da obra</span><span class="contagem">{len(o.etapas)}</span></div>
+    {filtro}
+    {''.join(grupos)}
+  </aside>
+  <section class="md-detalhe folha">
+    {chevrons(passos, "ui.fase_ir")}
+    {detalhe_html}
+  </section>
+</div>"""
 
 
 def _card_etapa(sis: Sistema, o: Obra, e, hoje) -> str:
     st = an.status_etapa(o, e, hoje)
     prog = an.progresso_etapa(e)
-    aberta = e.codigo in sis.ui["abertas"]
     feitos = sum(1 for i in e.checklist if i.feito)
     datas = (f"{an.data_br(e.inicio_previsto)} – {an.data_br(e.fim_previsto)}" if e.inicio_previsto else "sem datas")
-    cab = f"""
-<button type="button" class="etapa-cab" data-action="ui.expandir" data-codigo="{esc(e.codigo)}" aria-expanded="{str(aberta).lower()}">
-  <span class="cod">{esc(e.codigo)}</span>
-  <span class="etapa-nome">{esc(e.nome)}</span>
-  {pill(st)}
-  <span class="etapa-info">{feitos}/{len(e.checklist)} itens · {datas} · {an.moeda(e.orcamento)} · peso {e.peso:g}%{f" · {e.duracao_dias} dias úteis" if e.duracao_dias else ""}{' <span class="tag-obs">observação</span>' if e.observacao else ""}</span>
-  {barra(prog, '', an.fracao_prevista(e, hoje) if e.inicio_previsto else None)}
-</button>"""
-    if not aberta:
-        return f'<article class="etapa etapa-{SLUG.get(st, "")}">{cab}</article>'
-
     itens = "".join(
         f'<li class="chk{" feito" if i.feito else ""}">'
         f'<button type="button" class="chk-btn" data-action="etapa.item" data-codigo="{esc(e.codigo)}" data-item="{esc(i.id)}" '
         f'aria-pressed="{str(i.feito).lower()}"><span class="chk-caixa" aria-hidden="true"></span>'
-        f'<span class="chk-txt">{esc(i.texto)}</span>'
+        f'<span class="chk-num">{n:02d}</span><span class="chk-txt">{esc(i.texto)}</span>'
         f'{f"<span class=chk-data>{an.data_br(i.concluido_em)}</span>" if i.feito else ""}</button>'
+        f'<span class="chk-acoes">'
         f'{botao(ICONE_IMAGEM, "ui.figura", "btn-fig", "Ver imagem de referência", codigo=e.codigo, item=i.id) if tem_figura(i.texto) else ""}'
-        f'{botao("×", "etapa.remover_item", "btn-x", "Remover item", codigo=e.codigo, item=i.id)}</li>'
-        for i in e.checklist
+        f'{botao(ico("lixo", 16), "etapa.remover_item", "btn-x", "Remover item", codigo=e.codigo, item=i.id)}</span></li>'
+        for n, i in enumerate(e.checklist, 1)
     )
     pend = an.predecessoras_pendentes(o, e)
     aviso_pred = (f'<p class="nota nota-atencao">Aguardando: {esc(", ".join(_nome_etapa(o, p) for p in pend))}</p>' if pend else "")
     normas = f'<p class="nota">Normas: {esc(" · ".join(e.normas))}</p>' if e.normas else ""
-    todos = (botao("Desmarcar todos", "etapa.todos", "btn btn-sec", codigo=e.codigo, feito="0") if feitos == len(e.checklist) and e.checklist
-             else botao("Marcar todos", "etapa.todos", "btn btn-sec", codigo=e.codigo, feito="1"))
+    todos = (botao("Desmarcar todos", "etapa.todos", "acao-link", codigo=e.codigo, feito="0") if feitos == len(e.checklist) and e.checklist
+             else botao("Marcar todos", "etapa.todos", "acao-link", codigo=e.codigo, feito="1"))
+    ver_detalhe = (botao("Detalhe técnico da etapa", "ui.figura", "acao-link", codigo=e.codigo, item="_etapa")
+                   if detalhe(e.codigo) else "")
+    replanejar = botao("Recalcular cronograma", "obra.replanejar", "acao-link") if o.inicio and o.fim_previsto else ""
+    obs_tag = ' <span class="tag-obs">observação</span>' if e.observacao else ""
     return f"""
-<article class="etapa aberta etapa-{SLUG.get(st, "")}">
-  {cab}
-  <div class="etapa-corpo">
-    {aviso_pred}
+<article class="etapa-det etapa-{SLUG.get(st, "")}" aria-expanded="true">
+  <div class="acoes-faixa">
+    {todos}{ver_detalhe}{replanejar}
+    <span class="acoes-info">Exibindo {len(e.checklist)} itens</span>
+  </div>
+  <header class="etapa-cab-det">
+    <span class="tag-tipo" style="--cor:{COR_FASE.get(e.categoria, "#888")}">{esc(e.codigo)}</span>
+    <div class="etapa-cab-txt">
+      <h2><span class="cod-fraco">({esc(e.codigo)})</span> {esc(e.nome)}</h2>
+      <p class="meta-linha">
+        <span>{ico("bandeira", 15)} {esc(e.categoria)}</span><span class="sep">|</span>{pill(st)}<span class="sep">|</span>
+        <span>{ico("calendario", 15)} {datas}</span><span class="sep">|</span><span>{an.moeda(e.orcamento)} · peso {e.peso:g}%{f" · {e.duracao_dias} dias úteis" if e.duracao_dias else ""}</span>{obs_tag}
+      </p>
+      {barra(prog, '', an.fracao_prevista(e, hoje) if e.inicio_previsto else None)}
+    </div>
+    <span class="etapa-pct">{pct(prog)}<small>{feitos}/{len(e.checklist)} itens</small></span>
+  </header>
+  {aviso_pred}
+  <section class="etapa-sec">
+    <h3>Checklist de execução e qualidade <span class="contagem">{feitos}/{len(e.checklist)}</span></h3>
+    <ul class="checklist lista-linhas">{itens}</ul>
+    <form class="form-inline form-novo-item" data-action="etapa.novo_item" data-codigo="{esc(e.codigo)}">
+      <input id="novo-item-{esc(e.codigo)}" name="texto" placeholder="Novo item de checklist" aria-label="Novo item de checklist" maxlength="200" required>
+      <button class="btn" type="submit">{ico("mais", 16)} Adicionar item</button>
+    </form>
+  </section>
+  <section class="etapa-sec">
+    <h3>Escopo e especificações técnicas</h3>
     {_detalhes_etapa(o, e)}
-    <section class="etapa-sec">
-      <h3>Checklist de execução e qualidade <span class="contagem">{feitos}/{len(e.checklist)}</span></h3>
-      <ul class="checklist">{itens}</ul>
-      <div class="linha-acoes">
-        {todos}
-        <form class="form-inline" data-action="etapa.novo_item" data-codigo="{esc(e.codigo)}">
-          <input id="novo-item-{esc(e.codigo)}" name="texto" placeholder="Novo item de checklist" aria-label="Novo item de checklist" maxlength="200" required>
-          <button class="btn" type="submit">Adicionar</button>
-        </form>
-      </div>
-    </section>
+    {normas}
+  </section>
+  <div class="grade-2 etapa-forms">
     <section class="etapa-sec">
       <h3>Observações da etapa</h3>
       <form class="form-obs" data-action="etapa.observacao" data-codigo="{esc(e.codigo)}">
@@ -389,15 +516,17 @@ def _card_etapa(sis: Sistema, o: Obra, e, hoje) -> str:
         <button class="btn btn-sec" type="submit">Salvar observação</button>
       </form>
     </section>
-    <form class="form-grade form-etapa" data-action="etapa.salvar" data-codigo="{esc(e.codigo)}">
-      <label>Início previsto<input id="ini-{esc(e.codigo)}" type="date" name="inicio_previsto" value="{esc(e.inicio_previsto)}"></label>
-      <label>Fim previsto<input id="fim-{esc(e.codigo)}" type="date" name="fim_previsto" value="{esc(e.fim_previsto)}"></label>
-      <label>Orçamento (R$){campo_num(f"orc-{e.codigo}", "orcamento", e.orcamento)}</label>
-      <button class="btn btn-sec" type="submit">Salvar etapa</button>
-    </form>
-    {normas}
-    {bloco_ia(sis, o, "etapa", e.codigo)}
+    <section class="etapa-sec">
+      <h3>Prazo e orçamento</h3>
+      <form class="form-grade form-etapa" data-action="etapa.salvar" data-codigo="{esc(e.codigo)}">
+        <label>Início previsto<input id="ini-{esc(e.codigo)}" type="date" name="inicio_previsto" value="{esc(e.inicio_previsto)}"></label>
+        <label>Fim previsto<input id="fim-{esc(e.codigo)}" type="date" name="fim_previsto" value="{esc(e.fim_previsto)}"></label>
+        <label class="largo">Orçamento (R$){campo_num(f"orc-{e.codigo}", "orcamento", e.orcamento)}</label>
+        <button class="btn btn-sec" type="submit">Salvar etapa</button>
+      </form>
+    </section>
   </div>
+  {bloco_ia(sis, o, "etapa", e.codigo)}
 </article>"""
 
 
@@ -449,8 +578,7 @@ def _detalhes_etapa(o: Obra, e) -> str:
     atencao = "".join(f"<li>{esc(a)}</li>" for a in e.atencao)
     atencao = f'<div class="det-bloco det-atencao"><h4>Pontos de atenção</h4><ul>{atencao}</ul></div>' if atencao else ""
     desc = f'<p class="etapa-desc">{esc(e.descricao)}</p>' if e.descricao else ""
-    ver_detalhe = botao(f"{ICONE_IMAGEM} Detalhe técnico da etapa", "ui.figura", "btn btn-sec btn-mini", codigo=e.codigo, item="_etapa") if detalhe(e.codigo) else ""
-    return f'{desc}<div class="linha-acoes">{ver_detalhe}</div><div class="det-grade">{quant}{equipe}{atencao}</div>'
+    return f'{desc}<div class="det-grade">{quant}{equipe}{atencao}</div>'
 
 
 # ======================================================================= compras
@@ -504,7 +632,7 @@ def render_materiais(sis: Sistema) -> str:
 mudam com o padrão (itens marcados “ajustado ao padrão”); estrutura, alvenaria e cobertura não mudam. Troque o padrão em <b>Obras</b>.</p>
 <p class="nota">Ao solicitar, o pedido entra em <b>Pedidos de compra</b> como “Solicitada”, com prazo de chegada 7 dias antes do início da etapa. O preço é informado na cotação.
 Quantidades são estimativas para casa térrea; confira com o projeto executivo.</p>
-<div class="mat-lista">{''.join(blocos)}</div>"""
+<section class="folha folha-lista"><div class="mat-lista">{''.join(blocos)}</div></section>"""
 
 
 def _rotulo_perfil(o: Obra) -> str:
@@ -531,6 +659,8 @@ def _bloco_materiais(sis: Sistema, o: Obra, e, linhas: list[dict], n_pend: int, 
               f'<span class="pill pill-{"atraso" if urgente else "aguardando"}">{n_pend} a pedir</span>' if n_pend else '<span class="pill pill-andamento">Tudo pedido</span>')
     cab = f"""
 <button type="button" class="mat-cab" data-action="ui.mat_expandir" data-codigo="{esc(e.codigo)}" aria-expanded="{str(aberta).lower()}">
+  <span class="mat-seta" aria-hidden="true">{ico("baixo", 16)}</span>
+  <span class="cor" style="--cor:{COR_FASE.get(e.categoria, "#888")}"></span>
   <span class="cod">{esc(e.codigo)}</span>
   <span class="etapa-nome">{esc(e.nome)}</span>
   {estado}
@@ -606,14 +736,20 @@ def _render_pedidos(sis: Sistema) -> str:
     fin = an.resumo_financeiro(o)
     cards = "".join(_card_compra(o, c, c.id in atrasadas) for c in lista) or '<p class="vazio-txt">Nenhuma compra neste filtro.</p>'
     return f"""
-<div class="barra-acoes">
-  <div class="chips">{chips}</div>
-  {sel_etapa}
-  {botao("Fechar formulário" if sis.ui["form_compra"] else "+ Nova compra", "ui.form", "btn", qual="compra")}
-</div>
-{_form_compra(o) if sis.ui["form_compra"] else ""}
-<p class="nota">Comprometido {an.moeda(fin['comprometido'])} · entregue {an.moeda(fin['realizado'])} · aguardando aprovação {an.moeda(fin['em_aberto'])}</p>
-<div class="lista-cards">{cards}</div>"""
+<section class="folha folha-lista">
+  <div class="barra-ferr">
+    <div class="chips">{chips}</div>
+    {sel_etapa}
+    {botao("Fechar formulário" if sis.ui["form_compra"] else "Nova compra", "ui.form", "btn", qual="compra")}
+  </div>
+  {_form_compra(o) if sis.ui["form_compra"] else ""}
+  <div class="acoes-faixa">
+    <span>Comprometido <b>{an.moeda(fin['comprometido'])}</b></span><span>Entregue <b>{an.moeda(fin['realizado'])}</b></span>
+    <span>Aguardando aprovação <b>{an.moeda(fin['em_aberto'])}</b></span>
+    <span class="acoes-info">Exibindo {len(lista)} pedido(s)</span>
+  </div>
+  <div class="lista-docs">{cards}</div>
+</section>"""
 
 
 def _form_compra(o: Obra) -> str:
@@ -632,37 +768,48 @@ def _form_compra(o: Obra) -> str:
 </form>"""
 
 
+SIGLA_CAT = {"Material": "MAT", "Mão de obra": "MO", "Serviço terceirizado": "SRV", "Equipamento/locação": "EQP",
+             "Taxas e documentos": "TAX"}
+
+
 def _card_compra(o: Obra, c, atrasada: bool) -> str:
     try:
         etapa_nome = o.etapa(c.etapa).nome
+        cor = COR_FASE.get(o.etapa(c.etapa).categoria, "#888")
     except ValueError:
-        etapa_nome = c.etapa
+        etapa_nome, cor = c.etapa, "#888"
     proximos = TRANSICOES_COMPRA.get(c.status, ())
     acoes = "".join(
-        botao(f"→ {s}", "compra.status", "btn btn-sec" if s == "Cancelada" else "btn", id=c.id, status=s) for s in proximos
+        botao(f"→ {s}", "compra.status", "btn btn-sec btn-mini" if s == "Cancelada" else "btn btn-mini", id=c.id, status=s) for s in proximos
     )
     editar_preco = ""
     if c.status in ("Solicitada", "Em cotação", "Aprovada"):
         editar_preco = f"""
-<form class="form-inline" data-action="compra.preco" data-id="{esc(c.id)}">
+<form class="form-inline form-cotacao" data-action="compra.preco" data-id="{esc(c.id)}">
   {campo_num(f"vu-{c.id}", "valor_unitario", c.valor_unitario, rotulo="Valor unitário")}
   <input id="fo-{esc(c.id)}" name="fornecedor" value="{esc(c.fornecedor)}" placeholder="Fornecedor" aria-label="Fornecedor" maxlength="200">
-  <button class="btn btn-sec" type="submit">Salvar cotação</button>
+  <button class="btn btn-sec btn-mini" type="submit">Salvar cotação</button>
 </form>"""
-    excluir = "" if c.status in ("Pedido feito", "Entregue") else botao("Excluir", "compra.remover", "btn btn-link", id=c.id)
+    excluir = "" if c.status in ("Pedido feito", "Entregue") else botao(ico("lixo", 16), "compra.remover", "btn-x", "Excluir compra", id=c.id)
     nec = f"até {an.data_br(c.data_necessidade)}" if c.data_necessidade else "sem data"
     entrega = f" · entregue em {an.data_br(c.data_entrega)}" if c.data_entrega else ""
+    sigla = SIGLA_CAT.get(c.categoria, c.categoria[:3].upper())
     return f"""
-<article class="cartao compra{' atrasada' if atrasada else ''}">
-  <div class="cartao-cab">
-    <h3>{esc(c.descricao)}</h3>
-    <div class="pills">{pill(c.status)}{pill(c.prioridade)}{'<span class="pill pill-atraso">Atrasada</span>' if atrasada else ''}</div>
+<article class="linha-doc compra{' atrasada' if atrasada else ''}">
+  <span class="tag-arq">{esc(sigla)}</span>
+  <div class="ld-corpo">
+    <h3 class="ld-tit"><span class="cod-fraco" style="--cor:{cor}">({esc(c.etapa)})</span> {esc(c.descricao)}</h3>
+    <p class="ld-sub"><b>Etapa:</b> {esc(etapa_nome)} · <b>Qtd.:</b> {_num(c.quantidade)} {esc(c.unidade)} × {an.moeda(c.valor_unitario)}{f" · <b>Fornecedor:</b> {esc(c.fornecedor)}" if c.fornecedor else ""}{" · da lista de materiais" if c.material else ""}</p>
+    <p class="meta-linha">
+      <span>{ico("bandeira", 15)} {esc(c.categoria)}</span><span class="sep">|</span>{pill(c.status)}{'<span class="pill pill-atraso">Atrasada</span>' if atrasada else ''}
+      <span class="sep">|</span><span>{ico("calendario", 15)} {nec}{entrega}</span><span class="sep">|</span>{pill(c.prioridade)}
+    </p>
+    {editar_preco}
   </div>
-  <p class="cartao-meta"><span class="cod">{esc(c.etapa)}</span> {esc(etapa_nome)} · {esc(c.categoria)} · {nec}{entrega}{" · da lista de materiais" if c.material else ""}</p>
-  <p class="valores"><span>{_num(c.quantidade)} {esc(c.unidade)} × {an.moeda(c.valor_unitario)}</span><b>{an.moeda(c.valor_total)}</b></p>
-  {f'<p class="cartao-meta">Fornecedor: {esc(c.fornecedor)}</p>' if c.fornecedor else ''}
-  {editar_preco}
-  <div class="linha-acoes">{acoes}{excluir}</div>
+  <div class="ld-dir">
+    <b class="ld-valor">{an.moeda(c.valor_total)}</b>
+    <div class="ld-acoes">{acoes}{excluir}</div>
+  </div>
 </article>"""
 
 
@@ -683,9 +830,9 @@ def render_tarefas(sis: Sistema) -> str:
         cards = "".join(_card_tarefa(o, t, t.id in atrasadas) for t in ts) or '<p class="vazio-txt">—</p>'
         colunas.append(f'<section class="coluna"><h2>{pill(st)} <span class="contagem">{len(ts)}</span></h2>{cards}</section>')
     return f"""
-<div class="barra-acoes">
+<div class="barra-ferr folha">
   <p class="nota">Marque os itens do checklist; a tarefa só pode ser concluída com todos os itens feitos.</p>
-  {botao("Fechar formulário" if sis.ui["form_tarefa"] else "+ Nova tarefa", "ui.form", "btn", qual="tarefa")}
+  {botao("Fechar formulário" if sis.ui["form_tarefa"] else "Nova tarefa", "ui.form", "btn", qual="tarefa")}
 </div>
 {_form_tarefa(o) if sis.ui["form_tarefa"] else ""}
 <div class="kanban">{''.join(colunas)}</div>"""

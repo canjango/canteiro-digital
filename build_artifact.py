@@ -34,13 +34,14 @@ def montar() -> str:
     return f"""<title>Canteiro Digital</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 {css}
 .estado-gravacao {{ position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 20;
   background: var(--superficie); border: 1px solid var(--linha); border-radius: 20px; padding: 4px 12px; font-size: 0.75rem; color: var(--tinta-2);
   font-family: var(--fonte-dado); max-width: calc(100vw - 32px); }}
 .estado-gravacao:empty {{ display: none; }}
+@media (max-width: 760px) {{ .estado-gravacao {{ bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }} }}
 .estado-gravacao[data-tipo="ok"]::before {{ content: "● "; color: var(--ok); }}
 .estado-gravacao[data-tipo="salvando"]::before {{ content: "● "; color: var(--atencao); }}
 .estado-gravacao[data-tipo="local"]::before {{ content: "● "; color: var(--info); }}
