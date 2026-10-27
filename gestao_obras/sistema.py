@@ -39,7 +39,12 @@ class Sistema:
             "ia_chave_permitida": False,  # site externo aceita chave de API própria
             "ia_em_andamento": None,  # {id, obra, escopo, codigo, foco}
             "rev_aberta": "",         # revisão antiga expandida
-            "compras_vista": "pedidos",  # "pedidos" ou "materiais"
+            "compras_vista": "controle",  # "controle" (planilha de compras), "pedidos" ou "materiais"
+            "ctrl_etapa": "",         # etapa aberta no controle de compras ("" = resumo geral)
+            "ctrl_status": "",        # filtro por situação no controle de compras
+            "ctrl_item": "",          # item do controle aberto para edição
+            "ctrl_excluir": "",       # item aguardando confirmação de exclusão
+            "ctrl_novo": False,       # formulário de novo item aberto
             "figura": None,           # imagem de referência aberta: {"codigo", "item"} ("_etapa" = detalhe da etapa)
             "mat_abertas": [],        # etapas abertas na lista de materiais
         }
@@ -186,6 +191,7 @@ class Sistema:
         self.ui["fase"] = ""
         self.ui["figura"] = None
         self.ui["filtro_etapa"] = ""
+        self.ui.update(ctrl_etapa="", ctrl_status="", ctrl_item="", ctrl_excluir="", ctrl_novo=False)
         self.ui["confirmar_exclusao"] = ""
         if self.ui["aba"] == "obras":
             self.ui["aba"] = "painel"
@@ -402,9 +408,74 @@ class Sistema:
     # ---------------------------------------------------------- lista de materiais
     def _a_ui_vista_compras(self, d):
         vista = d.get("vista", "pedidos")
-        if vista not in ("pedidos", "materiais"):
+        if vista not in ("controle", "pedidos", "materiais"):
             raise ValidacaoErro("Vista inválida")
         self.ui["compras_vista"] = vista
+
+    # ---------------------------------------------------------- controle de compras (metodologia)
+    def _a_ctrl_carregar(self, d):
+        from . import controle as ct
+
+        o = self._obra_ativa()
+        n = ct.carregar_base(o, ajustar_area=str(d.get("ajustar", "")) == "1")
+        self.ui.update(ctrl_etapa="", ctrl_status="", ctrl_item="")
+        return self._mudou(f"{n} itens da planilha de compras carregados no controle")
+
+    def _a_ui_ctrl_etapa(self, d):
+        from . import controle as ct
+
+        e = d.get("etapa", "")
+        if e and e not in ct.etapas_controle(self._obra_ativa()):
+            raise ValidacaoErro("Etapa não encontrada no controle")
+        self.ui.update(ctrl_etapa=e, ctrl_item="", ctrl_excluir="", ctrl_novo=False)
+
+    def _a_ui_ctrl_status(self, d):
+        from .modelos import STATUS_CONTROLE
+
+        st = d.get("status", "")
+        if st and st not in STATUS_CONTROLE:
+            raise ValidacaoErro("Situação inválida")
+        self.ui["ctrl_status"] = "" if st == self.ui["ctrl_status"] else st
+
+    def _a_ui_ctrl_item(self, d):
+        it = self._obra_ativa().item_controle(d.get("id", ""))
+        self.ui["ctrl_item"] = "" if self.ui["ctrl_item"] == it.id else it.id
+        self.ui["ctrl_excluir"] = ""
+
+    def _a_ui_ctrl_novo(self, d):
+        self.ui["ctrl_novo"] = not self.ui["ctrl_novo"]
+
+    def _a_ctrl_salvar(self, d):
+        from . import controle as ct
+
+        it = ct.salvar_item(self._obra_ativa(), d.get("id", ""), d)
+        self.ui["ctrl_item"] = ""
+        return self._mudou(f"“{it.descricao}” atualizado")
+
+    def _a_ctrl_status(self, d):
+        from . import controle as ct
+
+        it = ct.mudar_status(self._obra_ativa(), d.get("id", ""), d.get("status", ""), self.hoje)
+        return self._mudou(f"“{it.descricao}”: {it.status.lower()}")
+
+    def _a_ctrl_novo(self, d):
+        from . import controle as ct
+
+        it = ct.novo_item(self._obra_ativa(), d)
+        self.ui.update(ctrl_etapa=it.etapa_base, ctrl_novo=False)
+        return self._mudou(f"Item “{it.descricao}” incluído")
+
+    def _a_ctrl_remover(self, d):
+        from . import controle as ct
+
+        o = self._obra_ativa()
+        it = o.item_controle(d.get("id", ""))
+        if self.ui["ctrl_excluir"] != it.id:
+            self.ui["ctrl_excluir"] = it.id
+            return
+        ct.remover_item(o, it.id)
+        self.ui.update(ctrl_excluir="", ctrl_item="")
+        return self._mudou(f"Item “{it.descricao}” removido do controle")
 
     def _a_ui_mat_expandir(self, d):
         cod = d.get("codigo", "")

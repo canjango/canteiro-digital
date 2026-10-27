@@ -142,6 +142,7 @@ def test_filtros_validados(sis):
     assert not sis.despachar("ui.filtro", {"filtro_etapa": "ZZZ"})["ok"]
     assert sis.despachar("ui.filtro", {"filtro_etapa": "EST", "filtro_compra": "todas"})["ok"]
     sis.despachar("ui.aba", {"aba": "compras"})
+    sis.despachar("ui.vista_compras", {"vista": "pedidos"})
     html = render(sis)
     assert "Concreto usinado fck 25 MPa (laje e cintas)" in html and "Bloco cerâmico" not in html
 

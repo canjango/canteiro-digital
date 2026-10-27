@@ -96,6 +96,7 @@ SLUG = {
     "Atrasada": "atraso", "Solicitada": "aguardando", "Em cotação": "liberada", "Aprovada": "andamento",
     "Pedido feito": "andamento", "Entregue": "ok", "Cancelada": "cancelada", "A fazer": "liberada",
     "Bloqueada": "atraso", "Baixa": "baixa", "Média": "media", "Alta": "alta", "Urgente": "urgente",
+    "A cotar": "aguardando", "Cotação solicitada": "liberada", "Comprado": "andamento",
 }
 
 
@@ -593,7 +594,9 @@ def _vistas_compras(sis: Sistema) -> str:
     o = sis.obra
     pend = sum(1 for e in o.etapas if not an.etapa_concluida(e)
                for x in sv.situacao_materiais(o, e.codigo) if x["situacao"] == "Não solicitado")
-    opcoes_v = (("pedidos", f"Pedidos de compra <span class=\"contagem\">{len(o.compras)}</span>"),
+    ctl = f'<span class="contagem">{len(o.controle)} itens</span>' if o.controle else '<span class="contagem">novo</span>'
+    opcoes_v = (("controle", f"Controle de compras {ctl}"),
+                ("pedidos", f"Pedidos de compra <span class=\"contagem\">{len(o.compras)}</span>"),
                 ("materiais", f"Lista de materiais por etapa <span class=\"contagem\">{pend} a pedir</span>"))
     return '<nav class="vistas" aria-label="Compras">' + "".join(
         f'<button type="button" class="vista{" ativa" if k == atual else ""}" data-action="ui.vista_compras" data-vista="{k}"'
@@ -603,7 +606,316 @@ def _vistas_compras(sis: Sistema) -> str:
 def render_compras(sis: Sistema) -> str:
     if sis.ui["compras_vista"] == "materiais":
         return _vistas_compras(sis) + render_materiais(sis)
+    if sis.ui["compras_vista"] == "controle":
+        return _vistas_compras(sis) + render_controle(sis)
     return _vistas_compras(sis) + _render_pedidos(sis)
+
+
+# ----------------------------------------------------------------------- controle de compras (metodologia)
+PASSOS_METODOLOGIA = (
+    ("1. Base", "Quantidade × preço de referência de cada material e serviço (valor orçado, sem BDI). "
+                "Linhas com quantidade estimada ficam marcadas para conferir no projeto."),
+    ("2. Programação", "Cada item ganha um “comprar até”: início previsto da etapa menos 7 dias para material "
+                       "e 3 dias para contratar mão de obra. Prazos vencidos ou da semana viram alerta no Painel."),
+    ("3. Cotação", "Registre até 3 fornecedores com preço à vista e a prazo. O menor preço na forma de pagamento "
+                   "escolhida é selecionado sozinho; você pode escolher outro."),
+    ("4. Decisão", "Defina à vista ou a prazo e o nº de parcelas: o sistema calcula o valor aplicado, o total da compra e a parcela."),
+    ("5. Compra e entrega", "“Comprado” exige cotação escolhida e registra a data; “Entregue” fecha o item. "
+                            "Itens comprados entram no comprometido e na medição por etapa do Painel."),
+    ("6. Controle", "Diferença compra × base por item e por etapa (verde = economia, vermelho = estouro) "
+                    "e fluxo mensal de pagamentos das compras a prazo."),
+)
+
+PROXIMO_STATUS = {"A cotar": ("Cotação solicitada", "Solicitar cotação"),
+                  "Cotação solicitada": ("Comprado", "Marcar comprado"),
+                  "Comprado": ("Entregue", "Marcar entregue")}
+
+
+def _cor_etapa_ctl(o: Obra, etapa_base: str) -> str:
+    for i in o.controle:
+        if i.etapa_base == etapa_base and i.etapa:
+            try:
+                return COR_FASE.get(o.etapa(i.etapa).categoria, "#888")
+            except ValueError:
+                continue
+    return "#888"
+
+
+def _pct_br(v: float | None) -> str:
+    return "—" if v is None else f"{v:+.1%}".replace(".", ",")
+
+
+def _dif(v: float | None) -> str:
+    if v is None:
+        return '<span class="nota">—</span>'
+    cls = "ok-txt" if v > 0.005 else "neg" if v < -0.005 else ""
+    return f'<span class="{cls}">{an.moeda(v)}</span>'
+
+
+def render_controle(sis: Sistema) -> str:
+    from . import controle as ct
+    from .base_compras import AREA_REFERENCIA, ITENS_BASE
+
+    o = sis.obra
+    metodo = "".join(f"<li><b>{esc(t)}</b><span>{esc(d)}</span></li>" for t, d in PASSOS_METODOLOGIA)
+    metodologia = f'<details class="metodologia"><summary>Metodologia de compras — como funciona</summary><ol>{metodo}</ol></details>'
+    if not o.controle:
+        total = sum(q * b for (_, _, _, _, _, _, q, b, *_r) in ITENS_BASE)
+        ajustar = ""
+        if o.area_construida and abs(o.area_construida - AREA_REFERENCIA) / AREA_REFERENCIA > 0.01:
+            ajustar = botao(f"Carregar ajustando quantidades para {_num(o.area_construida)} m²", "ctrl.carregar", "btn btn-sec", ajustar="1")
+        return f"""
+<section class="folha vazio-ctl">
+  <div class="vazio-ctl-txt">
+    <h2>Controle de compras pela planilha</h2>
+    <p>Carregue a base da planilha <b>Controle e Gestão de Compras da Obra</b>: {len(ITENS_BASE)} itens de material e mão de obra em 9 etapas,
+    com quantidades e preços de referência (residência de {_num(AREA_REFERENCIA)} m², total base {an.moeda(total)}, sem BDI).
+    Todos os itens entram como estão; depois é só cotar, decidir a forma de pagamento e registrar compra e entrega.</p>
+    <div class="linha-acoes">{botao(f"Carregar base da planilha ({len(ITENS_BASE)} itens)", "ctrl.carregar", "btn", ajustar="0")}{ajustar}</div>
+  </div>
+  {metodologia}
+</section>"""
+
+    r = ct.resumo(o)
+    filtro = sis.ui["ctrl_status"]
+    passos = [(st, f"{n} {'item' if n == 1 else 'itens'}", "atual" if st == filtro else "", {"status": st}) for st, n in r["status"].items()]
+    chev = chevrons(passos, "ui.ctrl_status").replace('aria-label="Fases da obra"', 'aria-label="Situação dos itens"')
+    faixa = f"""
+<div class="acoes-faixa ctl-totais">
+  <span>Base <b>{an.moeda(r['base'])}</b></span>
+  <span>Cotado <b>{an.moeda(r['compra'])}</b></span>
+  <span>Comprado <b>{an.moeda(r['comprado'])}</b></span>
+  <span>Diferença nos cotados <b>{_dif(r['diferenca'])}</b>{f" ({_pct_br(r['variacao'])})" if r['variacao'] is not None else ""}</span>
+  <span class="acoes-info">{esc(o.controle_origem or "Itens incluídos manualmente")}</span>
+</div>"""
+    sel = sis.ui["ctrl_etapa"]
+    etapas = ct.etapas_controle(o)
+    if sel and sel not in etapas:
+        sel = ""
+    lista = [f'<button type="button" class="md-item{" ativo" if not sel else ""}" data-action="ui.ctrl_etapa" data-etapa="">'
+             f'<span class="cor" style="--cor:var(--tinta)"></span><span class="md-cod">Σ</span><span class="md-nome">Resumo geral</span>'
+             f'<span class="md-pct">{r["itens"]}</span></button>']
+    for e in etapas:
+        ln = r["linhas"][e]
+        num, _, nome = e.partition(". ")
+        cls = " md-ok" if ln["comprados"] == ln["itens"] else ""
+        lista.append(
+            f'<button type="button" class="md-item{" ativo" if e == sel else ""}" data-action="ui.ctrl_etapa" data-etapa="{esc(e)}">'
+            f'<span class="cor" style="--cor:{_cor_etapa_ctl(o, e)}"></span><span class="md-cod">{esc(num)}</span>'
+            f'<span class="md-nome" title="{esc(nome)}">{esc(nome)}</span><span class="md-pct{cls}">{ln["comprados"]}/{ln["itens"]}</span></button>')
+    corpo = _ctl_etapa(sis, o, sel) if sel else _ctl_resumo(sis, o, r)
+    return f"""
+<section class="folha folha-fases">{chev}{faixa}</section>
+{metodologia}
+<div class="md">
+  <aside class="md-lista folha" aria-label="Etapas do controle de compras">
+    <div class="md-lista-cab"><span>Etapas da planilha</span>{botao("+ Item", "ui.ctrl_novo", "acao-link")}</div>
+    {''.join(lista)}
+  </aside>
+  <section class="md-detalhe folha">{_ctl_form_novo(o, sel) if sis.ui["ctrl_novo"] else ""}{corpo}</section>
+</div>"""
+
+
+def _ctl_form_novo(o: Obra, sel: str) -> str:
+    from . import controle as ct
+
+    etapas = ct.etapas_controle(o)
+    return f"""
+<form class="form-grade ctl-novo" data-action="ctrl.novo">
+  <label class="largo">Material / serviço<input id="cn-desc" name="descricao" required maxlength="200"></label>
+  <label>Etapa<select id="cn-etapa" name="etapa_base">{opcoes(etapas, sel or (etapas[0] if etapas else ""))}</select></label>
+  <label>Tipo<select id="cn-tipo" name="tipo">{opcoes(["material", "mao_de_obra"], "material", ["Material", "Mão de obra"])}</select></label>
+  <label>Grupo<input id="cn-grupo" name="grupo" maxlength="60" placeholder="Ex.: Alvenaria"></label>
+  <label>Especificação<input id="cn-esp" name="especificacao" maxlength="200"></label>
+  <label>Unidade<input id="cn-un" name="unidade" maxlength="20" value="un"></label>
+  <label>Quantidade{campo_num("cn-qtd", "quantidade", texto="1", placeholder="1")}</label>
+  <label>Valor unit. base (R$){campo_num("cn-vb", "valor_base")}</label>
+  <button class="btn" type="submit">Incluir item</button>
+</form>"""
+
+
+def _ctl_resumo(sis: Sistema, o: Obra, r: dict) -> str:
+    from . import controle as ct
+
+    linhas = "".join(
+        f'<tr><td><button type="button" class="link-tab" data-action="ui.ctrl_etapa" data-etapa="{esc(e)}">{esc(e)}</button></td>'
+        f'<td class="num">{ln["itens"]}</td><td class="num">{an.moeda(ln["base_materiais"])}</td>'
+        f'<td class="num">{an.moeda(ln["base_mao_obra"])}</td><td class="num"><b>{an.moeda(ln["base"])}</b></td>'
+        f'<td class="num">{an.moeda(ln["compra"])}</td><td class="num">{_dif(ln["diferenca"])}</td>'
+        f'<td class="num">{_pct_br(ln["variacao"])}</td></tr>'
+        for e, ln in r["linhas"].items()
+    )
+    total = (f'<tr><td>Total geral da obra</td><td class="num">{r["itens"]}</td><td class="num">{an.moeda(r["base_materiais"])}</td>'
+             f'<td class="num">{an.moeda(r["base_mao_obra"])}</td><td class="num">{an.moeda(r["base"])}</td>'
+             f'<td class="num">{an.moeda(r["compra"])}</td><td class="num">{_dif(r["diferenca"])}</td>'
+             f'<td class="num">{_pct_br(r["variacao"])}</td></tr>')
+    prog = ct.programacao(o, sis.hoje, dias=30)
+    if prog:
+        itens_p = "".join(
+            f'<li class="{"vencido" if ate < sis.hoje else ""}"><span class="prog-data">{an.data_br(ate.isoformat())}</span>'
+            f'<span class="prog-desc"><b>{esc(it.descricao)}</b> <span class="nota">{esc(it.etapa_base)} · {_num(it.quantidade)} {esc(it.unidade)}</span></span>'
+            f'{pill(it.status)}</li>' for it, ate in prog[:15])
+        mais = f'<p class="nota">+ {len(prog) - 15} item(ns)</p>' if len(prog) > 15 else ""
+        programacao = f'<ul class="prog-lista">{itens_p}</ul>{mais}'
+    elif not any(e.inicio_previsto for e in o.etapas):
+        programacao = '<p class="nota">Defina o cronograma da obra (datas das etapas) para o sistema calcular os prazos de compra.</p>'
+    else:
+        programacao = '<p class="vazio-txt">Nenhum item com prazo de compra nos próximos 30 dias.</p>'
+    fluxo = ct.fluxo_pagamentos(o)
+    if fluxo:
+        maior = max(fluxo.values()) or 1
+        fluxo_html = "".join(
+            f'<div class="linha-barra"><span class="lb-rot">{esc(m)}</span>{barra(v / maior, "barra-fin")}'
+            f'<span class="lb-val">{an.moeda(v)}</span></div>' for m, v in fluxo.items())
+    else:
+        fluxo_html = '<p class="vazio-txt">Aparece quando houver itens comprados (à vista no mês da compra; a prazo em parcelas a partir do mês seguinte).</p>'
+    est = (f'<p class="nota nota-atencao">{r["qtd_estimada"]} itens com quantidade estimada — confira com o projeto executivo antes de comprar.</p>'
+           if r["qtd_estimada"] else "")
+    return f"""
+<div class="etapa-sec">
+  <h3>Resumo geral por etapa</h3>
+  <p class="nota">Valor de compra = soma das cotações escolhidas. Diferença e variação comparam só os itens já cotados com a base deles (positivo = economia).</p>
+  {est}
+  <div class="tabela-wrap"><table class="tabela tabela-ctl-resumo">
+    <thead><tr><th>Etapa</th><th class="num">Nº de itens</th><th class="num">Base materiais</th><th class="num">Base mão de obra</th>
+    <th class="num">Base total</th><th class="num">Valor de compra</th><th class="num">Diferença</th><th class="num">% variação</th></tr></thead>
+    <tbody>{linhas}</tbody><tfoot>{total}</tfoot>
+  </table></div>
+</div>
+<div class="grade-2 etapa-forms">
+  <section class="etapa-sec"><h3>Programação de compras · próximos 30 dias</h3>{programacao}</section>
+  <section class="etapa-sec"><h3>Fluxo de pagamentos (itens comprados)</h3>{fluxo_html}</section>
+</div>"""
+
+
+def _ctl_etapa(sis: Sistema, o: Obra, etapa_base: str) -> str:
+    from . import controle as ct
+
+    filtro = sis.ui["ctrl_status"]
+    todos = [i for i in o.controle if i.etapa_base == etapa_base]
+    itens = [i for i in todos if not filtro or i.status == filtro]
+    blocos = []
+    for tipo, titulo in (("material", "Materiais"), ("mao_de_obra", "Mão de obra — serviços desta etapa")):
+        grupo = [i for i in itens if i.tipo == tipo]
+        if not grupo:
+            continue
+        linhas = "".join(_ctl_linha(sis, o, i) for i in grupo)
+        sub_base = sum(i.total_base for i in grupo)
+        sub_compra = sum(i.total_compra for i in grupo)
+        blocos.append(
+            f'<tbody class="ctl-bloco"><tr class="ctl-sec"><td colspan="7">{titulo}</td></tr>{linhas}'
+            f'<tr class="ctl-sub"><td colspan="2">Subtotal {titulo.split(" —")[0].lower()}</td><td class="num">{an.moeda(sub_base)}</td>'
+            f'<td class="num">{an.moeda(sub_compra)}</td><td class="num">{_dif(round(sum(i.total_base for i in grupo if i.total_compra) - sub_compra, 2) if sub_compra else None)}</td><td colspan="2"></td></tr></tbody>')
+    base = sum(i.total_base for i in todos)
+    compra = sum(i.total_compra for i in todos)
+    num, _, nome = etapa_base.partition(". ")
+    vazio = '' if blocos else '<p class="vazio-txt" style="padding:16px">Nenhum item nesta situação.</p>'
+    return f"""
+<header class="etapa-cab-det">
+  <span class="tag-tipo" style="--cor:{_cor_etapa_ctl(o, etapa_base)}">{esc(num)}</span>
+  <div class="etapa-cab-txt">
+    <h2>{esc(nome or etapa_base)}</h2>
+    <p class="meta-linha"><span>{len(todos)} itens</span><span class="sep">|</span><span>Base {an.moeda(base)}</span><span class="sep">|</span>
+    <span>Compra {an.moeda(compra)}</span>{f'<span class="sep">|</span><span class="chip ativo chip-mini">{esc(filtro)}</span>' if filtro else ""}</p>
+  </div>
+  <span class="etapa-pct">{sum(1 for i in todos if not ct.pendente(i))}/{len(todos)}<small>comprados</small></span>
+</header>
+<p class="nota ctl-legenda"><span class="leg leg-est"></span> quantidade estimada (validar no projeto) · <span class="leg leg-novo"></span> item novo ·
+<span class="tag-mo">MO</span> mão de obra · toque em <b>Cotar</b> para registrar fornecedores e forma de pagamento.</p>
+<div class="tabela-wrap"><table class="tabela tabela-ctl">
+  <thead><tr><th>Material / serviço</th><th class="num">Qtd.</th><th class="num">Base</th>
+  <th class="num">Compra</th><th class="num">Diferença</th><th>Situação</th><th>Ações</th></tr></thead>
+  {''.join(blocos)}
+</table></div>{vazio}"""
+
+
+def _ctl_linha(sis: Sistema, o: Obra, it) -> str:
+    from . import controle as ct
+
+    aberto = sis.ui["ctrl_item"] == it.id
+    ate = ct.comprar_ate(o, it)
+    prazo = ""
+    if ate and ct.pendente(it):
+        venc = ate < sis.hoje
+        prazo = f'<span class="ctl-prazo{" vencido" if venc else ""}">{"vencido " if venc else ""}até {an.data_br(ate.isoformat())}</span>'
+    elif it.data_entrega:
+        prazo = f'<span class="ctl-prazo">entregue {an.data_br(it.data_entrega)}</span>'
+    elif it.data_compra:
+        prazo = f'<span class="ctl-prazo">comprado {an.data_br(it.data_compra)}</span>'
+    prox = PROXIMO_STATUS.get(it.status)
+    avancar = ""
+    if prox and not (prox[0] in ("Comprado", "Entregue") and not it.total_compra):
+        avancar = botao(prox[1], "ctrl.status", "btn btn-mini", id=it.id, status=prox[0])
+    cotar = botao("Fechar" if aberto else ("Editar" if it.cotacoes else "Cotar"), "ui.ctrl_item", "btn btn-sec btn-mini", id=it.id)
+    forn = f'<small class="ctl-forn">{esc(it.fornecedor)} · {esc(it.forma or "")}{f" {it.parcelas}x {an.moeda(it.valor_parcela)}" if it.forma == "A Prazo" and it.parcelas > 1 else ""}</small>' if it.fornecedor else ""
+    classes = "ctl-linha" + (" ctl-est" if it.qtd_estimada else "") + (" ctl-novo" if it.novo else "") + (" aberta" if aberto else "")
+    mo = '<span class="tag-mo">MO</span> ' if it.tipo == "mao_de_obra" else ""
+    compra = (f'{an.moeda(it.total_compra)}<small>{an.moeda(it.valor_aplicado)}/{esc(it.unidade)}</small>'
+              if it.total_compra else "—")
+    linha = (
+        f'<tr class="{classes}">'
+        f'<td class="ctl-desc"><span class="ctl-grupo">{mo}{esc(it.grupo)}</span><b>{esc(it.descricao)}</b>'
+        f'{f"<small>{esc(it.especificacao)}</small>" if it.especificacao else ""}{forn}</td>'
+        f'<td class="num">{_num(it.quantidade)} {esc(it.unidade)}</td>'
+        f'<td class="num">{an.moeda(it.total_base)}<small class="ctl-base">{an.moeda(it.valor_base)}/{esc(it.unidade)}</small></td>'
+        f'<td class="num">{compra}</td>'
+        f'<td class="num">{_dif(it.diferenca)}</td>'
+        f'<td class="ctl-st">{pill(it.status)}{prazo}</td>'
+        f'<td class="ctl-acoes">{cotar}{avancar}</td></tr>'
+    )
+    if aberto:
+        linha += f'<tr class="ctl-edicao"><td colspan="7">{_ctl_form(sis, it)}</td></tr>'
+    return linha
+
+
+def _ctl_form(sis: Sistema, it) -> str:
+    from . import controle as ct
+    from .modelos import FORMAS_PAGAMENTO
+
+    melhor = ct.melhor_cotacao(it)
+    auto = it.escolhida == melhor
+    linhas = []
+    for n in range(1, ct.MAX_COTACOES + 1):
+        c = it.cotacoes[n - 1] if n <= len(it.cotacoes) else {}
+        marca = ' <span class="tag-melhor">menor preço</span>' if melhor == n - 1 else ""
+        chk = " checked" if (not auto and it.escolhida == n - 1) else ""
+        linhas.append(
+            f'<tr><td>{n}</td><td><input id="cf-{it.id}-{n}" name="fornecedor_{n}" value="{esc(c.get("fornecedor", ""))}" maxlength="200" '
+            f'placeholder="Fornecedor {n}" aria-label="Fornecedor {n}"></td>'
+            f'<td>{campo_num(f"cv-{it.id}-{n}", f"vista_{n}", c.get("vista") or None, rotulo=f"À vista, cotação {n}")}</td>'
+            f'<td>{campo_num(f"cp-{it.id}-{n}", f"prazo_{n}", c.get("prazo") or None, rotulo=f"A prazo, cotação {n}")}</td>'
+            f'<td><label class="radio"><input type="radio" name="escolhida" value="{n - 1}"{chk}> usar{marca}</label></td></tr>')
+    excluir = ""
+    if it.status not in ("Comprado", "Entregue"):
+        if sis.ui["ctrl_excluir"] == it.id:
+            excluir = (f'<span class="confirma">Remover este item do controle? '
+                       f'{botao("Sim, remover", "ctrl.remover", "btn btn-perigo btn-mini", id=it.id)}'
+                       f'{botao("Cancelar", "ui.ctrl_item", "btn btn-sec btn-mini", id=it.id)}</span>')
+        else:
+            excluir = botao("Remover item", "ctrl.remover", "btn-link", id=it.id)
+    voltar = ""
+    if it.status in ("Comprado", "Entregue"):
+        voltar = botao("Voltar para cotação", "ctrl.status", "btn-link", id=it.id, status="Cotação solicitada")
+    fonte = f" · preço {it.fonte_preco}" if it.fonte_preco else ""
+    return f"""
+<form class="ctl-form" data-action="ctrl.salvar" data-id="{esc(it.id)}">
+  <div class="form-grade ctl-form-base">
+    <label>Quantidade ({esc(it.unidade)}){campo_num(f"cq-{it.id}", "quantidade", texto=_num(it.quantidade))}</label>
+    <label>Valor unit. base (R$){campo_num(f"cb-{it.id}", "valor_base", it.valor_base)}</label>
+    <label>Forma de pagamento<select id="cfp-{it.id}" name="forma">{opcoes([""] + list(FORMAS_PAGAMENTO), it.forma, ["—"] + list(FORMAS_PAGAMENTO))}</select></label>
+    <label>Nº de parcelas{campo_num(f"cpa-{it.id}", "parcelas", texto=str(it.parcelas or ""), placeholder="1")}</label>
+  </div>
+  <div class="tabela-wrap"><table class="tabela tabela-cot">
+    <thead><tr><th>#</th><th>Fornecedor / prestador</th><th class="num">À vista (R$/{esc(it.unidade)})</th><th class="num">A prazo (R$/{esc(it.unidade)})</th><th>Escolha</th></tr></thead>
+    <tbody>{''.join(linhas)}
+    <tr><td></td><td colspan="3" class="nota">Sem escolha marcada, o sistema usa o menor preço na forma de pagamento.</td>
+    <td><label class="radio"><input type="radio" name="escolhida" value=""{" checked" if auto else ""}> automático</label></td></tr></tbody>
+  </table></div>
+  <label class="ctl-obs">Observações<textarea id="co-{it.id}" name="observacao" rows="2" maxlength="500">{esc(it.observacao)}</textarea></label>
+  <p class="nota">Base: {_num(it.quantidade)} {esc(it.unidade)} × {an.moeda(it.valor_base)} = <b>{an.moeda(it.total_base)}</b>{fonte}{" · quantidade estimada" if it.qtd_estimada else ""}.
+  Situação: {esc(it.status)}{f" desde {an.data_br(it.data_compra)}" if it.data_compra else ""}.</p>
+  <div class="linha-acoes"><button class="btn" type="submit">Salvar cotação</button>{voltar}{excluir}</div>
+</form>"""
 
 
 def render_materiais(sis: Sistema) -> str:

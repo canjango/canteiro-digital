@@ -137,6 +137,84 @@ class Compra:
         return cls(**_filtrar(cls, d))
 
 
+STATUS_CONTROLE = ("A cotar", "Cotação solicitada", "Comprado", "Entregue")
+FORMAS_PAGAMENTO = ("À Vista", "A Prazo")
+
+
+@dataclass
+class ItemControle:
+    """Item da planilha de controle de compras (metodologia: base → cotação → decisão → compra → entrega).
+
+    Mesma lógica da planilha "Controle e Gestão de Compras da Obra":
+    valor aplicado = a prazo se a forma for "A Prazo", senão à vista; total = quantidade × aplicado;
+    parcela = total ÷ nº de parcelas (a prazo); diferença = base − total."""
+    descricao: str
+    etapa_base: str  # etapa da planilha (ex.: "2. Fundação")
+    etapa: str = ""  # etapa da obra no sistema (ex.: "FUN"), usada para o prazo de compra
+    grupo: str = ""
+    tipo: str = "material"  # "material" ou "mao_de_obra"
+    especificacao: str = ""
+    unidade: str = "un"
+    quantidade: float = 0.0
+    valor_base: float = 0.0  # preço unitário de referência (coluna verde)
+    cotacoes: list[dict] = field(default_factory=list)  # até 3: {"fornecedor", "vista", "prazo"}
+    escolhida: int = -1  # índice da cotação escolhida
+    forma: str = ""  # "À Vista" ou "A Prazo"
+    parcelas: int = 0
+    status: str = "A cotar"
+    data_compra: str = ""
+    data_entrega: str = ""
+    fonte_preco: str = ""  # "pesquisado" / "estimado" / ""
+    qtd_estimada: bool = False
+    novo: bool = False
+    observacao: str = ""
+    id: str = field(default_factory=lambda: novo_id("ctl"))
+
+    # ------------------------------------------------------------ cálculos (como na planilha)
+    @property
+    def total_base(self) -> float:
+        return round(self.quantidade * self.valor_base, 2)
+
+    @property
+    def cotacao(self) -> dict | None:
+        if 0 <= self.escolhida < len(self.cotacoes):
+            return self.cotacoes[self.escolhida]
+        return None
+
+    @property
+    def fornecedor(self) -> str:
+        c = self.cotacao
+        return c.get("fornecedor", "") if c else ""
+
+    @property
+    def valor_aplicado(self) -> float:
+        c = self.cotacao
+        if not c:
+            return 0.0
+        if self.forma == "A Prazo":
+            return float(c.get("prazo") or c.get("vista") or 0)
+        return float(c.get("vista") or c.get("prazo") or 0)
+
+    @property
+    def total_compra(self) -> float:
+        return round(self.quantidade * self.valor_aplicado, 2)
+
+    @property
+    def valor_parcela(self) -> float:
+        if self.forma == "A Prazo" and self.parcelas > 0:
+            return round(self.total_compra / self.parcelas, 2)
+        return self.total_compra
+
+    @property
+    def diferenca(self) -> float | None:
+        """Base − compra (positivo = economia). Só existe depois de cotado."""
+        return round(self.total_base - self.total_compra, 2) if self.total_compra else None
+
+    @classmethod
+    def de_dict(cls, d: dict) -> "ItemControle":
+        return cls(**_filtrar(cls, d))
+
+
 @dataclass
 class Tarefa:
     titulo: str
@@ -175,6 +253,8 @@ class Obra:
     bdi: float = 0.0  # % de BDI sobre o custo direto (orçamento); obras antigas ficam sem BDI
     modelo_etapas: int = 1  # versão do catálogo de etapas aplicada (1 = obras antigas)
     revisoes: list[dict] = field(default_factory=list)  # revisões feitas com a Claude (mais recente primeiro)
+    controle: list[ItemControle] = field(default_factory=list)  # controle de compras (planilha de compras)
+    controle_origem: str = ""  # de onde veio a base do controle de compras
     id: str = field(default_factory=lambda: novo_id("obra"))
 
     # ---------------------------------------------------------- serialização
@@ -187,6 +267,7 @@ class Obra:
         d["etapas"] = [Etapa.de_dict(e) for e in d.get("etapas", [])]
         d["compras"] = [Compra.de_dict(c) for c in d.get("compras", [])]
         d["tarefas"] = [Tarefa.de_dict(t) for t in d.get("tarefas", [])]
+        d["controle"] = [ItemControle.de_dict(i) for i in d.get("controle", [])]
         return cls(**d)
 
     # ---------------------------------------------------------- buscas
@@ -201,6 +282,12 @@ class Obra:
             if c.id == compra_id:
                 return c
         raise ValidacaoErro("Compra não encontrada")
+
+    def item_controle(self, item_id: str) -> "ItemControle":
+        for i in self.controle:
+            if i.id == item_id:
+                return i
+        raise ValidacaoErro("Item do controle de compras não encontrado")
 
     def tarefa(self, tarefa_id: str) -> Tarefa:
         for t in self.tarefas:

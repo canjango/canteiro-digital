@@ -123,6 +123,10 @@ def custos_por_etapa(obra: Obra) -> list[dict]:
         compras = [c for c in obra.compras if c.etapa == e.codigo]
         comprometido = sum(c.valor_total for c in compras if c.status in COMPROMETIDAS)
         realizado = sum(c.valor_total for c in compras if c.status == "Entregue")
+        # controle de compras (planilha): itens comprados/entregues ligados a esta etapa
+        ctl = [i for i in obra.controle if i.etapa == e.codigo]
+        comprometido += sum(i.total_compra for i in ctl if i.status in ("Comprado", "Entregue"))
+        realizado += sum(i.total_compra for i in ctl if i.status == "Entregue")
         prog = progresso_etapa(e)
         executado = round(e.orcamento * prog, 2)  # medição: orçado × avanço físico da etapa
         linhas.append(
@@ -148,6 +152,10 @@ def custos_por_categoria(obra: Obra) -> "OrderedDict[str, float]":
     for c in obra.compras:
         if c.status in COMPROMETIDAS:
             res[c.categoria] = round(res.get(c.categoria, 0.0) + c.valor_total, 2)
+    for i in obra.controle:
+        if i.status in ("Comprado", "Entregue"):
+            cat = "Mão de obra" if i.tipo == "mao_de_obra" else "Material"
+            res[cat] = round(res.get(cat, 0.0) + i.total_compra, 2)
     return res
 
 
@@ -191,6 +199,8 @@ def preco_venda(obra: Obra) -> float:
 def resumo_financeiro(obra: Obra) -> dict:
     comprometido = sum(c.valor_total for c in obra.compras if c.status in COMPROMETIDAS)
     realizado = sum(c.valor_total for c in obra.compras if c.status == "Entregue")
+    comprometido += sum(i.total_compra for i in obra.controle if i.status in ("Comprado", "Entregue"))
+    realizado += sum(i.total_compra for i in obra.controle if i.status == "Entregue")
     em_aberto = sum(c.valor_total for c in obra.compras if c.status in ("Solicitada", "Em cotação"))
     orc = obra.orcamento_total
     executado = sum(e.orcamento * progresso_etapa(e) for e in obra.etapas)
@@ -287,6 +297,19 @@ def alertas(obra: Obra, hoje: date | None = None) -> list[Alerta]:
                 out.append(Alerta("atencao" if (ini - hoje).days <= 7 else "info",
                                   f"{e.nome} começa em {(ini - hoje).days} dia(s) com {faltam} materiais não solicitados",
                                   "Veja Compras → Lista de materiais", "compras"))
+
+    if obra.controle:
+        from .controle import programacao
+
+        prog_ctl = programacao(obra, hoje, dias=7)
+        vencidos = [x for x in prog_ctl if x[1] < hoje]
+        if vencidos:
+            out.append(Alerta("critico", f"Controle de compras: {len(vencidos)} item(ns) com prazo de compra vencido",
+                              f"Ex.: {vencidos[0][0].descricao} (até {_br(vencidos[0][1].isoformat())})", "compras"))
+        proximos = [x for x in prog_ctl if x[1] >= hoje]
+        if proximos:
+            out.append(Alerta("atencao", f"Controle de compras: {len(proximos)} item(ns) a comprar nos próximos 7 dias",
+                              f"Ex.: {proximos[0][0].descricao} (até {_br(proximos[0][1].isoformat())})", "compras"))
 
     for linha in custos_por_etapa(obra):
         if linha["orcado"] and linha["comprometido"] > linha["orcado"]:
