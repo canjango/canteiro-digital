@@ -13,7 +13,10 @@ from html import escape
 
 from . import analise as an
 from .etapas import CATEGORIAS, MODELO_VERSAO
-from .padroes import CODIGOS_PADRAO, PADROES, REFERENCIA, rotulo as rotulo_padrao
+from .padroes import (
+    CODIGOS_PADRAO, CUB_ESTADOS, PADROES, UF_SEM_PADRAO, UF_SUGERIDA, UFS,
+    referencia as referencia_cub, rotulo as rotulo_padrao, rotulo_uf, valor_referencia,
+)
 from .modelos import (
     CATEGORIAS_COMPRA,
     PRIORIDADES,
@@ -193,7 +196,7 @@ def render_topo(sis: Sistema) -> str:
                    + opcoes([x.id for x in _ordenadas(sis)], o.id, [x.nome for x in _ordenadas(sis)]) + "</select>")
         padrao_txt = PADROES.get(o.padrao, {}).get("nome", o.padrao).lower()
         meta = " · ".join(esc(x) for x in (o.cliente, o.endereco, f"{_num(o.area_construida)} m²",
-                                          f"padrão {padrao_txt} · {an.moeda(o.valor_m2)}/m²", f"BDI {_num(o.bdi)}%" if o.bdi else "") if x)
+                                          f"padrão {padrao_txt} · {an.moeda(o.valor_m2)}/m² · CUB-{o.uf_cub}", f"BDI {_num(o.bdi)}%" if o.bdi else "") if x)
         datas = f"{an.data_br(o.inicio)} → {an.data_br(o.fim_previsto)}" if o.inicio else "sem cronograma"
         info = f'<p class="topo-meta">{meta}{" · " if meta else ""}{datas}</p>'
         selo = f'<span class="selo">{"EXEMPLO · " if o.exemplo else ""}{esc(o.padrao)}</span>'
@@ -1230,7 +1233,7 @@ def render_obras(sis: Sistema) -> str:
       <label>Início<input id="o-ini" name="inicio" type="date"></label>
       <label>Término previsto<input id="o-fim" name="fim_previsto" type="date"></label>
       <label>Área construída (m²){campo_num("o-area", "area_construida", texto="100", placeholder="100")}</label>
-      {_campos_padrao("o", "R1-N", None, _num(sv.BDI_SUGERIDO))}
+      {_campos_padrao("o", "R1-N", None, _num(sv.BDI_SUGERIDO), UF_SUGERIDA)}
       <label class="largo">Orçamento — custo direto (R$){campo_num("o-orc", "orcamento_total", placeholder="Em branco = área × valor do m²")}</label>
       <button class="btn" type="submit">Criar obra com etapas padrão</button>
     </form>
@@ -1256,26 +1259,39 @@ def _form_editar(o: Obra) -> str:
   <label>Início<input id="e-ini" name="inicio" type="date" value="{esc(o.inicio)}"></label>
   <label>Término previsto<input id="e-fim" name="fim_previsto" type="date" value="{esc(o.fim_previsto)}"></label>
   <label>Área construída (m²){campo_num("e-area", "area_construida", texto=_num(o.area_construida), placeholder="100")}</label>
-  {_campos_padrao("e", o.padrao, o.valor_m2, _num(o.bdi))}
+  {_campos_padrao("e", o.padrao, o.valor_m2, _num(o.bdi), o.uf_cub)}
   <label class="largo">Orçamento — custo direto (R$){campo_num("e-orc", "orcamento_total", o.orcamento_total)}</label>
   <button class="btn" type="submit">Salvar dados</button>
 </form>
 {_bloco_padrao(o, com_acao=True)}"""
 
 
-def _campos_padrao(prefixo: str, padrao: str, valor_m2: float | None, bdi: str = "") -> str:
+def _campos_padrao(prefixo: str, padrao: str, valor_m2: float | None, bdi: str = "", uf: str = UF_SUGERIDA) -> str:
     rotulos = [
-        f'{rotulo_padrao(c)} — {an.moeda(PADROES[c]["valor_m2"])}/m²' if c != "PERS" else "Personalizado (informe o valor)"
+        f'{rotulo_padrao(c)} — {an.moeda(valor_referencia(c, uf))}/m² ({uf})' if c != "PERS" else "Personalizado (informe o valor)"
         for c in CODIGOS_PADRAO
     ]
+    linhas = "".join(
+        f'<tr{" class=atual" if u == uf else ""}><td>{u}</td><td>{esc(CUB_ESTADOS[u][0])}</td>'
+        f'<td class="num">{an.moeda(CUB_ESTADOS[u][3])}</td><td class="num">{an.moeda(CUB_ESTADOS[u][4])}</td>'
+        f'<td class="num">{an.moeda(CUB_ESTADOS[u][5])}</td><td>{esc(CUB_ESTADOS[u][2])}</td></tr>'
+        for u in UFS
+    )
+    tabela = (f'<details class="largo tabela-cub"><summary>Tabela CUB por estado (R1-B, R1-N, R1-A)</summary>'
+              f'<div class="tabela-wrap"><table class="tabela"><thead><tr><th>UF</th><th>Estado</th><th class="num">Baixo R1-B</th>'
+              f'<th class="num">Normal R1-N</th><th class="num">Alto R1-A</th><th>Mês</th></tr></thead><tbody>{linhas}</tbody></table></div>'
+              f'<p class="nota">Valores sem desoneração da folha, publicados pelos sindicatos da construção de cada estado (NBR 12721). '
+              f'{", ".join(UF_SEM_PADRAO)} não publicam os padrões R1: use “Personalizado” com o valor do seu orçamento.</p></details>')
     return (
+        f'<label>CUB do estado<select id="{prefixo}-uf" name="uf_cub">{opcoes(UFS, uf, [rotulo_uf(u) for u in UFS])}</select></label>'
         f'<label>Padrão construtivo<select id="{prefixo}-padrao" name="padrao">{opcoes(CODIGOS_PADRAO, padrao, rotulos)}</select></label>'
-        f'<label>Valor por m² (R$){campo_num(f"{prefixo}-vm2", "valor_m2", valor_m2, placeholder="Em branco = valor do padrão")}</label>'
+        f'<label>Valor por m² (R$){campo_num(f"{prefixo}-vm2", "valor_m2", valor_m2, placeholder="Em branco = CUB do padrão no estado")}</label>'
         f'<label>BDI (%){campo_num(f"{prefixo}-bdi", "bdi", texto=bdi, placeholder="0", rotulo="BDI em porcentagem")}</label>'
-        f'<p class="nota largo">Referência: {esc(REFERENCIA)}. Troque o padrão para usar o valor dele, '
-        f'ou digite o CUB do seu estado / custo próprio no valor por m². '
+        f'<p class="nota largo">Referência: {esc(referencia_cub(uf))}. Ao trocar o estado ou o padrão, o valor por m² passa a ser o CUB '
+        f'correspondente; para usar um custo próprio, digite outro valor por m². '
         f'O orçamento é o custo direto (comparável ao CUB); o BDI (administração, riscos, impostos e lucro) entra por cima '
         f'e forma o preço de venda. Faixa usual em residências: 20% a 30%.</p>'
+        f'{tabela}'
     )
 
 
@@ -1289,7 +1305,8 @@ def _bloco_padrao(o: Obra, com_acao: bool = False) -> str:
         sentido = "acima" if dif > 0 else "abaixo"
         comp = (f'<p class="padrao-comp {cls}">Orçamento {abs(dif):.0%} {sentido} do custo pelo padrão'
                 if abs(dif) >= 0.005 else '<p class="padrao-comp ok-txt">Orçamento igual ao custo pelo padrão') + "</p>"
-    origem = "valor próprio" if p["valor_proprio"] else "CUB de referência"
+    mes = CUB_ESTADOS.get(p["uf"], ("", "", ""))[2]
+    origem = "valor próprio" if p["valor_proprio"] else f"CUB-{p['uf']} {mes}"
     acao = ""
     if com_acao and p["estimado"] and abs(p["estimado"] - p["orcado"]) >= 0.01:
         acao = botao(f"Usar {an.moeda(p['estimado'])} como orçamento", "obra.orcamento_padrao", "btn btn-sec")

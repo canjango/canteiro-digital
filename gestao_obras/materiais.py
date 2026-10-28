@@ -356,7 +356,7 @@ VARIACOES: dict[str, dict[str, tuple]] = {
 PERFIS_MATERIAIS = ("R1-B", "R1-N", "R1-MA", "R1-A")
 
 
-def perfil_do_padrao(padrao: str, valor_m2: float = 0.0) -> str:
+def perfil_do_padrao(padrao: str, valor_m2: float = 0.0, uf: str = "SP") -> str:
     """Perfil de especificação usado na lista. Personalizado usa o padrão de
     valor por m² mais próximo."""
     if padrao in PERFIS_MATERIAIS:
@@ -365,7 +365,7 @@ def perfil_do_padrao(padrao: str, valor_m2: float = 0.0) -> str:
 
     if not valor_m2:
         return "R1-N"
-    return min(PERFIS_MATERIAIS, key=lambda c: abs(valor_referencia(c) - valor_m2))
+    return min(PERFIS_MATERIAIS, key=lambda c: abs(valor_referencia(c, uf) - valor_m2))
 
 
 def _variacao(chave: str, perfil: str) -> tuple[float, str | None]:
@@ -378,10 +378,10 @@ def _variacao(chave: str, perfil: str) -> tuple[float, str | None]:
     return v.get(perfil, (1.0, None))
 
 
-def materiais_da_etapa(codigo: str, padrao: str = "R1-N", valor_m2: float = 0.0) -> list[dict]:
+def materiais_da_etapa(codigo: str, padrao: str = "R1-N", valor_m2: float = 0.0, uf: str = "SP") -> list[dict]:
     """Materiais da etapa já ajustados ao padrão construtivo (quantidade de
     referência para 100 m² e especificação). Itens com fator 0 saem da lista."""
-    perfil = perfil_do_padrao(padrao, valor_m2)
+    perfil = perfil_do_padrao(padrao, valor_m2, uf)
     lista = []
     for m in MATERIAIS.get(codigo, []):
         fator, desc = _variacao(m["chave"], perfil)

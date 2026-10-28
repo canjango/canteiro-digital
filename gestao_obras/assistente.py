@@ -93,6 +93,7 @@ def montar_pedido(obra: Obra, escopo: str, codigo: str = "", foco: str = "", hoj
             "area_construida_m2": obra.area_construida,
             "padrao_construtivo": rotulo_padrao(obra.padrao),
             "valor_m2_referencia": obra.valor_m2,
+            "tabela_cub": pad["referencia"],
             "custo_pelo_padrao": pad["estimado"],
             "orcamento_total_custo_direto": obra.orcamento_total,
             "bdi_percentual": obra.bdi,

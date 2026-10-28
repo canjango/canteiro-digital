@@ -723,3 +723,9 @@ form.ctl-novo { display: grid; }
   .prog-lista li { grid-template-columns: 4.8rem 1fr; }
   .prog-lista li .pill { grid-column: 2; justify-self: start; }
 }
+
+/* tabela CUB por estado no cadastro da obra */
+.tabela-cub summary { cursor: pointer; font-size: 0.82rem; font-weight: 600; color: var(--tinta); }
+.tabela-cub .tabela { margin-top: 8px; font-size: 0.78rem; }
+.tabela-cub tr.atual td { background: var(--sinal) !important; color: var(--sinal-tinta); font-weight: 600; }
+.tabela-cub .nota { margin-top: 6px; }

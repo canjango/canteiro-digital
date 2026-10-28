@@ -250,6 +250,7 @@ class Obra:
     area_construida: float = 100.0  # m²; escala os quantitativos de referência
     padrao: str = "R1-N"  # padrão construtivo (ver padroes.py)
     valor_m2: float = 2690.33  # R$/m² do padrão (CUB ou valor próprio)
+    uf_cub: str = "SP"  # estado da tabela CUB usada como referência (obras antigas: SP)
     bdi: float = 0.0  # % de BDI sobre o custo direto (orçamento); obras antigas ficam sem BDI
     modelo_etapas: int = 1  # versão do catálogo de etapas aplicada (1 = obras antigas)
     revisoes: list[dict] = field(default_factory=list)  # revisões feitas com a Claude (mais recente primeiro)

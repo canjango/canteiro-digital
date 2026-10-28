@@ -202,6 +202,7 @@ class Sistema:
             d.get("responsavel_tecnico", ""), d.get("inicio", ""), d.get("fim_previsto", ""),
             d.get("orcamento_total", ""), area_construida=d.get("area_construida", 100),
             padrao=d.get("padrao", "R1-N"), valor_m2=d.get("valor_m2", ""), bdi=d.get("bdi", 0),
+            uf_cub=d.get("uf_cub", "SP"),
         )
         self.obras[o.id] = o
         self.ui.update(obra=o.id, aba="etapas", abertas=[o.etapas[0].codigo], filtro_etapa="")
@@ -223,11 +224,13 @@ class Sistema:
             raise ValidacaoErro("Informe o nome da obra")
         novo_orc = sv.ler_numero(d.get("orcamento_total", o.orcamento_total), "Orçamento")
         area = sv._area(d.get("area_construida", o.area_construida))
-        padrao, vm2 = sv.resolver_padrao(d.get("padrao", o.padrao), d.get("valor_m2", ""), (o.padrao, o.valor_m2))
+        uf = sv.ler_uf(d.get("uf_cub", o.uf_cub))
+        padrao, vm2 = sv.resolver_padrao(d.get("padrao", o.padrao), d.get("valor_m2", ""), (o.padrao, o.valor_m2),
+                                         uf=uf, uf_anterior=o.uf_cub)
         bdi = sv.ler_bdi(d.get("bdi", o.bdi))
         if novo_orc != o.orcamento_total:
             sv.redistribuir_orcamento(o, novo_orc)
-        o.area_construida, o.padrao, o.valor_m2, o.bdi = area, padrao, vm2, bdi
+        o.area_construida, o.padrao, o.valor_m2, o.bdi, o.uf_cub = area, padrao, vm2, bdi, uf
         o.nome = nome
         o.cliente = " ".join(str(d.get("cliente", "")).split())
         o.endereco = " ".join(str(d.get("endereco", "")).split())
@@ -523,7 +526,7 @@ def obra_exemplo(hoje: date) -> Obra:
     o = sv.criar_obra(
         "Residência unifamiliar (exemplo)", "Cliente exemplo", "Rua Exemplo, 100",
         "Responsável técnico", ini.isoformat(), fim.isoformat(), 285000, exemplo=True,
-        area_construida=100, padrao="R1-N", bdi=25,
+        area_construida=100, padrao="R1-N", bdi=25, uf_cub="PB",
     )
     feito = {"PRE": 12, "TER": 8, "FUN": 11, "EST": 8, "ALV": 8}
     for cod, n in feito.items():

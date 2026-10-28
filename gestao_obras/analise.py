@@ -161,18 +161,19 @@ def custos_por_categoria(obra: Obra) -> "OrderedDict[str, float]":
 
 def resumo_padrao(obra: Obra) -> dict:
     """Compara o orçamento da obra com o custo pelo padrão construtivo (área × R$/m²)."""
-    from .padroes import REFERENCIA, rotulo, valor_referencia
+    from .padroes import referencia, rotulo, valor_referencia
 
     estimado = round(obra.area_construida * obra.valor_m2, 2)
     orcado = obra.orcamento_total
-    ref = valor_referencia(obra.padrao)
+    ref = valor_referencia(obra.padrao, obra.uf_cub)
     return {
         "padrao": obra.padrao,
         "rotulo": rotulo(obra.padrao),
         "valor_m2": obra.valor_m2,
         "valor_referencia": ref,
         "valor_proprio": obra.padrao == "PERS" or abs(obra.valor_m2 - ref) >= 0.005,
-        "referencia": REFERENCIA,
+        "referencia": referencia(obra.uf_cub),
+        "uf": obra.uf_cub,
         "area": obra.area_construida,
         "estimado": estimado,
         "orcado": orcado,

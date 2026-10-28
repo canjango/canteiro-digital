@@ -63,6 +63,7 @@ def criar_obra(
     padrao: str = PADRAO_INICIAL,
     valor_m2="",
     bdi=0,
+    uf_cub="SP",
 ) -> Obra:
     """Cria a obra com todas as etapas padrão, distribuindo o orçamento pelo
     peso de cada etapa e o cronograma pela duração típica e pela sequência."""
@@ -71,7 +72,8 @@ def criar_obra(
     if d_ini and d_fim and d_fim <= d_ini:
         raise ValidacaoErro("A data de término deve ser posterior ao início")
     area = _area(area_construida)
-    padrao, vm2 = resolver_padrao(padrao, valor_m2)
+    uf = ler_uf(uf_cub)
+    padrao, vm2 = resolver_padrao(padrao, valor_m2, uf=uf)
     # sem orçamento informado, estima pela área × valor do m² do padrão
     orc = ler_numero(orcamento_total, "Orçamento") if str(orcamento_total).strip() not in ("", "0") else round(area * vm2, 2)
 
@@ -87,6 +89,7 @@ def criar_obra(
         area_construida=area,
         padrao=padrao,
         valor_m2=vm2,
+        uf_cub=uf,
         bdi=ler_bdi(bdi),
         modelo_etapas=MODELO_VERSAO,
     )
@@ -115,7 +118,17 @@ def _area(valor) -> float:
     return area
 
 
-def resolver_padrao(padrao: str, valor_m2="", anterior: tuple[str, float] | None = None) -> tuple[str, float]:
+def ler_uf(uf) -> str:
+    from .padroes import CUB_ESTADOS, UF_PADRAO
+
+    uf = str(uf or UF_PADRAO).strip().upper()
+    if uf not in CUB_ESTADOS:
+        raise ValidacaoErro(f"Estado sem tabela CUB por padrão: {uf} — use o padrão Personalizado")
+    return uf
+
+
+def resolver_padrao(padrao: str, valor_m2="", anterior: tuple[str, float] | None = None,
+                    uf: str = "SP", uf_anterior: str | None = None) -> tuple[str, float]:
     """Define padrão e R$/m².
 
     - valor informado e diferente do que estava gravado: vale o valor informado
@@ -128,6 +141,7 @@ def resolver_padrao(padrao: str, valor_m2="", anterior: tuple[str, float] | None
     informado = ler_numero(valor_m2, "Valor por m²") if str(valor_m2).strip() else 0.0
     if informado and not (100 <= informado <= 50_000):
         raise ValidacaoErro("Valor por m² deve ficar entre R$ 100 e R$ 50.000")
+    # valor igual ao gravado (inclusive ao trocar só o estado) = usar o CUB do padrão no estado escolhido
     mudou_valor = informado and (anterior is None or abs(informado - anterior[1]) >= 0.005)
     if mudou_valor:
         return padrao, round(informado, 2)
@@ -136,7 +150,7 @@ def resolver_padrao(padrao: str, valor_m2="", anterior: tuple[str, float] | None
         if not atual:
             raise ValidacaoErro("Informe o valor por m² do padrão personalizado")
         return padrao, round(atual, 2)
-    return padrao, valor_referencia(padrao)
+    return padrao, valor_referencia(padrao, uf)
 
 
 def custo_estimado(obra: Obra) -> float:
@@ -430,7 +444,7 @@ def situacao_materiais(obra: Obra, codigo: str) -> list[dict]:
     """Materiais da etapa com quantidade necessária (pela área) e o que já foi pedido."""
     obra.etapa(codigo)
     linhas = []
-    for m in mt.materiais_da_etapa(codigo, obra.padrao, obra.valor_m2):
+    for m in mt.materiais_da_etapa(codigo, obra.padrao, obra.valor_m2, obra.uf_cub):
         necessario = mt.quantidade(m["qtd"], m["un"], obra.area_construida)
         compras = [c for c in obra.compras if c.material == m["chave"] and c.status != "Cancelada"]
         pedido = round(sum(c.quantidade for c in compras), 3)

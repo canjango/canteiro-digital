@@ -6,9 +6,11 @@ Base: CUB/m² (Custo Unitário Básico, NBR 12721) para residência unifamiliar
 O padrão "Médio/alto" (R1-MA) não existe na NBR 12721: o valor dele é a
 média entre R1-N e R1-A, recalculada se esses valores forem atualizados.
 
-Os valores padrão são de São Paulo (Sinduscon-SP), setembro/2026, sem
-desoneração da folha. O CUB muda todo mês e por estado: o valor por m² de
-cada obra é editável e deve ser atualizado com o CUB do estado da obra.
+O CUB muda por estado e todo mês. CUB_ESTADOS traz R1-B, R1-N e R1-A de cada
+sindicato estadual (sem desoneração da folha), no mês mais recente publicado
+até out/2026. AC, AM, SC e TO não divulgam (ou não foram encontrados) os
+padrões R1 por projeto-padrão: nesses estados use "Personalizado". O valor por
+m² de cada obra continua editável.
 
 O CUB NÃO inclui: terreno, projetos e aprovações, fundações especiais,
 elevadores, instalações especiais, paisagismo, impostos e BDI da construtora
@@ -18,7 +20,49 @@ elevadores, instalações especiais, paisagismo, impostos e BDI da construtora
 
 from __future__ import annotations
 
-REFERENCIA = "CUB/m² Sinduscon-SP · setembro/2026 · sem desoneração"
+# CUB/m² sem desoneração por estado: (nome, sindicato, mês de referência, R1-B, R1-N, R1-A)
+CUB_ESTADOS: dict[str, tuple] = {
+    "AL": ("Alagoas", "Sinduscon-AL", "jun/2026", 2029.44, 2323.23, 3145.00),
+    "AP": ("Amapá", "Sinduscon-AP", "set/2026", 2821.65, 3186.62, 4258.28),
+    "BA": ("Bahia", "Sinduscon-BA", "set/2026", 2338.12, 2734.31, 3352.72),
+    "CE": ("Ceará", "Sinduscon-CE", "set/2026", 2425.20, 2971.06, 3546.10),
+    "DF": ("Distrito Federal", "Sinduscon-DF", "ago/2026", 2490.71, 2940.10, 3608.89),
+    "ES": ("Espírito Santo", "Sinduscon-ES", "set/2026", 2891.16, 3479.99, 4261.81),
+    "GO": ("Goiás", "Sinduscon-GO", "set/2026", 2302.55, 2795.37, 3430.67),
+    "MA": ("Maranhão", "Sinduscon-MA", "set/2026", 1998.66, 2289.83, 2838.57),
+    "MG": ("Minas Gerais", "Sinduscon-MG", "set/2026", 2552.62, 3118.02, 3884.77),
+    "MS": ("Mato Grosso do Sul", "Sinduscon-MS", "set/2026", 1859.76, 2180.16, 2694.82),
+    "MT": ("Mato Grosso", "Sinduscon-MT", "set/2026", 3337.14, 4009.00, 4899.76),
+    "PA": ("Pará", "Sinduscon-PA", "set/2026", 2459.47, 2855.61, 3577.00),
+    "PB": ("Paraíba", "Sinduscon-JP", "ago/2026", 1642.62, 2037.27, 2510.14),
+    "PE": ("Pernambuco", "Sinduscon-PE", "set/2026", 2361.01, 2795.91, 3422.72),
+    "PI": ("Piauí", "Sinduscon-PI", "ago/2026", 2873.09, 3644.79, 4879.17),
+    "PR": ("Paraná", "Sinduscon-PR", "set/2026", 2681.59, 3365.21, 4109.51),
+    "RJ": ("Rio de Janeiro", "Sinduscon-Rio", "set/2026", 2476.02, 2990.86, 3691.68),
+    "RN": ("Rio Grande do Norte", "Sinduscon-RN", "ago/2026", 2296.38, 2583.52, 3201.37),
+    "RO": ("Rondônia", "Sinduscon-RO", "set/2026", 2505.72, 2728.06, 3637.16),
+    "RR": ("Roraima", "Sinduscon-RR", "ago/2026", 2918.56, 3280.51, 4646.70),
+    "RS": ("Rio Grande do Sul", "Sinduscon-RS", "set/2026", 2567.33, 3452.09, 4664.55),
+    "SE": ("Sergipe", "Sinduscon-SE", "ago/2026", 1896.68, 2381.49, 3064.02),
+    "SP": ("São Paulo", "Sinduscon-SP", "set/2026", 2193.39, 2690.33, 3255.86),
+}
+UF_SEM_PADRAO = ("AC", "AM", "SC", "TO")  # sem R1-B/N/A publicados: usar "Personalizado"
+UF_PADRAO = "SP"  # obras antigas foram calculadas com o CUB-SP
+UF_SUGERIDA = "PB"  # estado sugerido para obras novas
+UFS = tuple(sorted(CUB_ESTADOS))
+
+
+def referencia(uf: str = UF_PADRAO) -> str:
+    nome, sind, mes, *_ = CUB_ESTADOS.get(uf, CUB_ESTADOS[UF_PADRAO])
+    return f"CUB/m² {sind} ({nome}) · {mes} · sem desoneração"
+
+
+def rotulo_uf(uf: str) -> str:
+    nome, _s, mes, *_ = CUB_ESTADOS[uf]
+    return f"{uf} — {nome} ({mes})"
+
+
+REFERENCIA = referencia(UF_PADRAO)
 
 PADROES: dict[str, dict] = {
     "R1-B": {
@@ -71,5 +115,10 @@ def rotulo(codigo: str) -> str:
     return f'{p["nome"]} ({codigo})'
 
 
-def valor_referencia(codigo: str) -> float:
-    return PADROES.get(codigo, {}).get("valor_m2", 0.0)
+def valor_referencia(codigo: str, uf: str = UF_PADRAO) -> float:
+    """CUB do padrão no estado (R1-MA = média de R1-N e R1-A)."""
+    t = CUB_ESTADOS.get(uf or UF_PADRAO)
+    if not t or codigo not in ("R1-B", "R1-N", "R1-MA", "R1-A"):
+        return PADROES.get(codigo, {}).get("valor_m2", 0.0)
+    b, n, a = t[3], t[4], t[5]
+    return {"R1-B": b, "R1-N": n, "R1-A": a, "R1-MA": round((n + a) / 2, 2)}[codigo]
