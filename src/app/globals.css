@@ -8,6 +8,116 @@
    botão principal preto e destaque amarelo de sinalização (fase atual / filtro ativo). */
 :root {
   --radius: 0.4rem;
+  --background: oklch(0.97 0.003 95);
+  --foreground: oklch(0.17 0.006 90);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.17 0.006 90);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.17 0.006 90);
+  --primary: oklch(0.17 0.006 90);
+  --primary-foreground: oklch(0.99 0.002 95);
+  --secondary: oklch(0.95 0.005 95);
+  --secondary-foreground: oklch(0.17 0.006 90);
+  --muted: oklch(0.95 0.005 95);
+  --muted-foreground: oklch(0.4 0.012 90);
+  --accent: oklch(0.92 0.008 95);
+  --accent-foreground: oklch(0.17 0.006 90);
+  --destructive: oklch(0.48 0.18 28);
+  --border: oklch(0.83 0.006 95);
+  --input: oklch(0.58 0.01 90);
+  --ring: oklch(0.17 0.006 90);
+  --sinal: oklch(0.87 0.17 95);
+  --sinal-foreground: oklch(0.17 0.006 90);
+  --sinal-suave: oklch(0.965 0.06 100);
+  --trilho: oklch(0.17 0.006 90);
+  --trilho-foreground: oklch(0.93 0.004 95);
+  --ok: oklch(0.45 0.12 145);
+  --ok-suave: oklch(0.95 0.04 145);
+  --atencao: oklch(0.5 0.12 55);
+  --atencao-suave: oklch(0.96 0.045 85);
+  --critico: oklch(0.48 0.18 28);
+  --critico-suave: oklch(0.95 0.03 28);
+  --info: oklch(0.33 0.01 90);
+  --info-suave: oklch(0.93 0.006 95);
+  --mo: oklch(0.45 0.11 75);
+  --selo-texto: oklch(1 0 0);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: oklch(0.13 0.004 90);
+    --foreground: oklch(0.97 0.004 95);
+    --card: oklch(0.18 0.005 90);
+    --card-foreground: oklch(0.97 0.004 95);
+    --popover: oklch(0.18 0.005 90);
+    --popover-foreground: oklch(0.97 0.004 95);
+    --primary: oklch(0.88 0.17 95);
+    --primary-foreground: oklch(0.15 0.004 90);
+    --secondary: oklch(0.23 0.006 90);
+    --secondary-foreground: oklch(0.97 0.004 95);
+    --muted: oklch(0.23 0.006 90);
+    --muted-foreground: oklch(0.8 0.01 95);
+    --accent: oklch(0.27 0.008 90);
+    --accent-foreground: oklch(0.97 0.004 95);
+    --destructive: oklch(0.76 0.14 28);
+    --border: oklch(0.34 0.007 90);
+    --input: oklch(0.55 0.01 90);
+    --ring: oklch(0.88 0.17 95);
+    --sinal: oklch(0.88 0.17 95);
+    --sinal-foreground: oklch(0.15 0.004 90);
+    --sinal-suave: oklch(0.3 0.06 97);
+    --trilho: oklch(0.09 0.003 90);
+    --trilho-foreground: oklch(0.9 0.006 95);
+    --ok: oklch(0.8 0.14 145);
+    --ok-suave: oklch(0.28 0.05 145);
+    --atencao: oklch(0.84 0.13 75);
+    --atencao-suave: oklch(0.29 0.05 75);
+    --critico: oklch(0.76 0.14 28);
+    --critico-suave: oklch(0.29 0.06 28);
+    --info: oklch(0.88 0.01 95);
+    --info-suave: oklch(0.27 0.006 90);
+    --mo: oklch(0.8 0.11 80);
+    --selo-texto: oklch(0.13 0.004 90);
+  }
+}
+.dark {
+  --background: oklch(0.13 0.004 90);
+  --foreground: oklch(0.97 0.004 95);
+  --card: oklch(0.18 0.005 90);
+  --card-foreground: oklch(0.97 0.004 95);
+  --popover: oklch(0.18 0.005 90);
+  --popover-foreground: oklch(0.97 0.004 95);
+  --primary: oklch(0.88 0.17 95);
+  --primary-foreground: oklch(0.15 0.004 90);
+  --secondary: oklch(0.23 0.006 90);
+  --secondary-foreground: oklch(0.97 0.004 95);
+  --muted: oklch(0.23 0.006 90);
+  --muted-foreground: oklch(0.8 0.01 95);
+  --accent: oklch(0.27 0.008 90);
+  --accent-foreground: oklch(0.97 0.004 95);
+  --destructive: oklch(0.76 0.14 28);
+  --border: oklch(0.34 0.007 90);
+  --input: oklch(0.55 0.01 90);
+  --ring: oklch(0.88 0.17 95);
+  --sinal: oklch(0.88 0.17 95);
+  --sinal-foreground: oklch(0.15 0.004 90);
+  --sinal-suave: oklch(0.3 0.06 97);
+  --trilho: oklch(0.09 0.003 90);
+  --trilho-foreground: oklch(0.9 0.006 95);
+  --ok: oklch(0.8 0.14 145);
+  --ok-suave: oklch(0.28 0.05 145);
+  --atencao: oklch(0.84 0.13 75);
+  --atencao-suave: oklch(0.29 0.05 75);
+  --critico: oklch(0.76 0.14 28);
+  --critico-suave: oklch(0.29 0.06 28);
+  --info: oklch(0.88 0.01 95);
+  --info-suave: oklch(0.27 0.006 90);
+  --mo: oklch(0.8 0.11 80);
+  --selo-texto: oklch(0.13 0.004 90);
+}
+
+/* Paleta anterior ("Canteiro"), escolhida na tela Início → Aparência */
+:root[data-paleta="canteiro"] {
   --background: oklch(0.955 0.004 95);
   --foreground: oklch(0.18 0.005 90);
   --card: oklch(1 0 0);
@@ -42,9 +152,8 @@
   --mo: oklch(0.6 0.13 80);
   --selo-texto: oklch(1 0 0);
 }
-
 @media (prefers-color-scheme: dark) {
-  :root:not(.light) {
+  :root[data-paleta="canteiro"]:not(.light) {
     --background: oklch(0.14 0.004 90);
     --foreground: oklch(0.95 0.005 95);
     --card: oklch(0.195 0.005 90);
@@ -80,7 +189,7 @@
     --selo-texto: oklch(0.14 0.004 90);
   }
 }
-.dark {
+:root.dark[data-paleta="canteiro"] {
   --background: oklch(0.14 0.004 90);
   --foreground: oklch(0.95 0.005 95);
   --card: oklch(0.195 0.005 90);
@@ -169,9 +278,11 @@
   @media (prefers-color-scheme: dark) {
     html:not(.light) { color-scheme: dark; }
   }
+  html.dark { color-scheme: dark; }
   body {
     @apply bg-background text-foreground antialiased;
-    font-size: 14.5px;
+    font-size: 15px;
+    line-height: 1.5;
   }
   h1, h2, h3 {
     text-wrap: balance;

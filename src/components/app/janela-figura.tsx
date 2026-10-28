@@ -39,7 +39,7 @@ export function JanelaFigura() {
       {aberto && (
         <DialogContent aria-describedby="figura-nota">
           <div className="pr-8">
-            <p className="mb-0.5 text-[0.72rem] font-medium uppercase tracking-wider text-muted-foreground">{rotulo}</p>
+            <p className="mb-0.5 text-[0.76rem] font-medium uppercase tracking-wider text-muted-foreground">{rotulo}</p>
             <DialogTitle>{titulo}</DialogTitle>
           </div>
           {pronto ? (

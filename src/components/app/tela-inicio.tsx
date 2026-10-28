@@ -13,6 +13,7 @@ import { situacaoMateriais } from "@/lib/core/servicos";
 import type { Obra } from "@/lib/core/modelos";
 import { ABAS_SEM_OBRA } from "@/lib/core/sistema";
 import { moeda, pct } from "@/lib/core/util";
+import * as pl from "@/lib/paleta";
 import { cn } from "@/lib/utils";
 import { Nota } from "./comum";
 import { useSistema } from "./provedor";
@@ -178,7 +179,7 @@ export function TelaInicio() {
                     <span className="grid size-10 place-items-center rounded-md bg-trilho text-sinal transition-colors group-hover:bg-sinal group-hover:text-sinal-foreground">
                       <b.Icone className="size-5" />
                     </span>
-                    {b.novo && <span className="rounded-sm border border-foreground/15 bg-sinal px-1 text-[0.6rem] font-bold uppercase leading-4 text-sinal-foreground">novo</span>}
+                    {b.novo && <span className="rounded-sm border border-foreground/15 bg-sinal px-1 text-[0.68rem] font-bold uppercase leading-4 text-sinal-foreground">novo</span>}
                   </span>
                   <span className="flex w-full items-center gap-1 text-[0.95rem] font-semibold leading-tight break-words">
                     {b.titulo}
@@ -196,6 +197,70 @@ export function TelaInicio() {
           </div>
         </section>
       ))}
+      <Aparencia />
     </div>
+  );
+}
+
+/** Escolha da paleta e do tema (por pessoa, guardado só neste navegador). */
+function Aparencia() {
+  const [a, setA] = React.useState<pl.Aparencia | null>(null);
+  React.useEffect(() => setA(pl.lerAparencia()), []);
+  if (!a) return null;
+  const mudar = (novo: Partial<pl.Aparencia>) => {
+    const x = { ...a, ...novo };
+    pl.aplicarAparencia(x, true);
+    setA(x);
+  };
+  return (
+    <section className="col-span-full flex flex-col gap-2.5" aria-label="Aparência">
+      <h2 className="text-[0.78rem] font-semibold uppercase tracking-wider text-muted-foreground">Aparência</h2>
+      <Card className="flex-row flex-wrap items-start gap-x-6 gap-y-3 p-3.5">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <span className="text-[0.82rem] font-medium">Paleta de cores</span>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Paleta de cores">
+            {pl.PALETAS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="radio"
+                aria-checked={a.paleta === p.id}
+                onClick={() => mudar({ paleta: p.id })}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-md border px-3 py-2 text-left transition-colors hover:border-foreground",
+                  a.paleta === p.id && "border-foreground shadow-[inset_0_-3px_0_var(--sinal)]",
+                )}
+              >
+                <span className="flex overflow-hidden rounded-sm border border-foreground/20" aria-hidden>
+                  {p.amostra.map((c) => <span key={c} className="size-4" style={{ background: c }} />)}
+                </span>
+                <span className="flex flex-col">
+                  <span className="text-[0.86rem] font-semibold">{p.nome}</span>
+                  <span className="text-[0.76rem] text-muted-foreground">{p.desc}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[0.82rem] font-medium">Tema</span>
+          <div className="flex rounded-md border p-0.5" role="radiogroup" aria-label="Tema">
+            {pl.TEMAS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={a.tema === t.id}
+                onClick={() => mudar({ tema: t.id })}
+                className={cn("rounded px-3 py-1.5 text-[0.84rem] font-medium hover:bg-muted", a.tema === t.id && "bg-primary text-primary-foreground hover:bg-primary")}
+              >
+                {t.nome}
+              </button>
+            ))}
+          </div>
+        </div>
+        <Nota className="basis-full text-[0.78rem]">A escolha vale só para você, neste navegador.</Nota>
+      </Card>
+    </section>
   );
 }

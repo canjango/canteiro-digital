@@ -36,7 +36,7 @@ export function Indicadores({ itens }: { itens: { rotulo: string; valor: string;
     <div className="grid grid-cols-2 gap-2.5 md:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
       {itens.map((i) => (
         <Card key={i.rotulo} className="gap-0.5 p-3">
-          <span className="text-[0.72rem] font-medium uppercase tracking-wide text-muted-foreground">{i.rotulo}</span>
+          <span className="text-[0.76rem] font-medium uppercase tracking-wide text-muted-foreground">{i.rotulo}</span>
           <span className={cn("font-mono text-[1.05rem] font-semibold", i.tom === "critico" && "text-critico", i.tom === "ok" && "text-ok", i.tom === "atencao" && "text-atencao")}>
             {i.valor}
           </span>

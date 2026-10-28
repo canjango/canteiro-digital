@@ -70,7 +70,7 @@ export function TelaEtapas() {
             if (!etapas.length) return null;
             return (
               <div key={cat} className="flex shrink-0 flex-row gap-1.5 md:flex-col md:gap-1">
-                <p className="mx-1 mt-1 hidden text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground md:block">{cat}</p>
+                <p className="mx-1 mt-1 hidden text-[0.74rem] font-semibold uppercase tracking-wider text-muted-foreground md:block">{cat}</p>
                 {etapas.map((e) => {
                   const ativo = sel?.codigo === e.codigo;
                   const st = an.statusEtapa(o, e, hoje);
@@ -90,7 +90,7 @@ export function TelaEtapas() {
                       <span className="font-mono text-[0.74rem] text-muted-foreground">{e.codigo}</span>
                       <span className="max-w-[9rem] truncate text-[0.85rem] md:max-w-none">{e.nome}</span>
                       <span className={cn(
-                        "hidden font-mono text-[0.72rem] text-muted-foreground md:inline",
+                        "hidden font-mono text-[0.76rem] text-muted-foreground md:inline",
                         st === "Concluída" && "font-semibold text-ok", st === "Atrasada" && "font-semibold text-critico",
                         st === "Em andamento" && "font-semibold text-info",
                       )}>{pct(an.progressoEtapa(e))}</span>
@@ -136,7 +136,7 @@ function DetalheEtapa({ o, e }: { o: Obra; e: Etapa }) {
       </div>
 
       <header className="grid grid-cols-[1fr_auto] items-start gap-3.5 border-b p-4 sm:grid-cols-[auto_1fr_auto]">
-        <span className="mt-1 hidden rounded-sm border border-l-4 bg-card px-1.5 py-0.5 font-mono text-[0.68rem] font-semibold text-muted-foreground sm:inline" style={{ borderLeftColor: corFase(e.categoria) }}>
+        <span className="mt-1 hidden rounded-sm border border-l-4 bg-card px-1.5 py-0.5 font-mono text-[0.72rem] font-semibold text-muted-foreground sm:inline" style={{ borderLeftColor: corFase(e.categoria) }}>
           {e.codigo}
         </span>
         <div className="flex min-w-0 flex-col gap-2">
@@ -148,12 +148,12 @@ function DetalheEtapa({ o, e }: { o: Obra; e: Etapa }) {
             <span className="inline-flex items-center gap-1"><CalendarIcon className="size-3.5" /> {datas}</span>
             <span className="text-border">|</span>
             <span>{moeda(e.orcamento)} · peso {num(e.peso)}%{e.duracao_dias ? ` · ${e.duracao_dias} dias úteis` : ""}</span>
-            {e.observacao && <span className="rounded-sm bg-info px-1.5 text-[0.66rem] font-semibold text-selo-texto">observação</span>}
+            {e.observacao && <span className="rounded-sm bg-info px-1.5 text-[0.7rem] font-semibold text-selo-texto">observação</span>}
           </p>
           <Progress value={prog} marca={e.inicio_previsto ? an.fracaoPrevista(e, hoje) : null} />
         </div>
         <span className="text-right text-2xl font-bold leading-none tabular-nums">
-          {pct(prog)}<small className="mt-1 block text-[0.72rem] font-normal text-muted-foreground">{feitos}/{e.checklist.length} itens</small>
+          {pct(prog)}<small className="mt-1 block text-[0.76rem] font-normal text-muted-foreground">{feitos}/{e.checklist.length} itens</small>
         </span>
       </header>
 
@@ -174,9 +174,9 @@ function DetalheEtapa({ o, e }: { o: Obra; e: Etapa }) {
                 <span className={cn("grid size-[18px] shrink-0 place-items-center rounded-[3px] border-[1.5px] border-muted-foreground bg-card", i.feito && "border-ok bg-ok")} aria-hidden>
                   {i.feito && <span className="mb-0.5 h-[9px] w-1 rotate-45 border-b-2 border-r-2 border-white" />}
                 </span>
-                <span className="hidden shrink-0 rounded-sm border px-1 font-mono text-[0.7rem] text-muted-foreground sm:inline">{String(n + 1).padStart(2, "0")}</span>
+                <span className="hidden shrink-0 rounded-sm border px-1 font-mono text-[0.74rem] text-muted-foreground sm:inline">{String(n + 1).padStart(2, "0")}</span>
                 <span className={cn("min-w-0 flex-1 break-words text-[0.88rem]", i.feito && "text-muted-foreground line-through decoration-ok")}>{i.texto}</span>
-                {i.feito && <span className="hidden shrink-0 rounded-sm bg-ok px-1.5 font-mono text-[0.7rem] text-selo-texto sm:inline">{dataBr(i.concluido_em)}</span>}
+                {i.feito && <span className="hidden shrink-0 rounded-sm bg-ok px-1.5 font-mono text-[0.74rem] text-selo-texto sm:inline">{dataBr(i.concluido_em)}</span>}
               </button>
               {temFigura(i.texto) && (
                 <Button variant="ghost" size="icon-sm" title="Ver imagem de referência" aria-label="Ver imagem de referência" onClick={() => acao("ui.figura", { codigo: e.codigo, item: i.id })}>

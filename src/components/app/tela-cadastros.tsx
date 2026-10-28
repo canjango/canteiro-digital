@@ -40,7 +40,7 @@ export function TelaContatos() {
             const n = t ? sis.cadastros.contatos.filter((c) => c.tipo === t).length : sis.cadastros.contatos.length;
             return (
               <Button key={t || "todos"} size="sm" variant={tipo === t ? "default" : "outline"} aria-pressed={tipo === t} onClick={() => setTipo(t)}>
-                {t || "Todos"} <span className="font-mono text-[0.7rem] opacity-70">{n}</span>
+                {t || "Todos"} <span className="font-mono text-[0.74rem] opacity-70">{n}</span>
               </Button>
             );
           })}
@@ -55,7 +55,7 @@ export function TelaContatos() {
               <Card key={c.id} className="gap-1.5 p-3.5">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="min-w-0 break-words font-semibold">{c.nome}</h3>
-                  <span className="shrink-0 rounded-sm border px-1.5 text-[0.66rem] font-semibold uppercase">{c.tipo}</span>
+                  <span className="shrink-0 rounded-sm border px-1.5 text-[0.7rem] font-semibold uppercase">{c.tipo}</span>
                 </div>
                 {c.especialidade && <p className="text-[0.82rem]">{c.especialidade}</p>}
                 <p className="flex flex-wrap gap-x-3 gap-y-1 text-[0.8rem] text-muted-foreground">
@@ -159,7 +159,7 @@ export function TelaInsumos() {
                     <TableRow key={i.id}>
                       <TableCell className="whitespace-normal">
                         <span className="font-medium">{i.descricao}</span>
-                        <span className="block text-[0.72rem] text-muted-foreground">{i.tipo}{i.codigo ? ` · ${i.codigo}` : ""}</span>
+                        <span className="block text-[0.76rem] text-muted-foreground">{i.tipo}{i.codigo ? ` · ${i.codigo}` : ""}</span>
                       </TableCell>
                       <TableCell className="hidden whitespace-normal text-muted-foreground md:table-cell">{i.grupo || "—"}</TableCell>
                       <TableCell>{i.unidade}</TableCell>

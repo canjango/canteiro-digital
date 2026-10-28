@@ -107,17 +107,17 @@ export function TelaRecebimentos() {
                         <TableCell className="font-mono">{dataBr(x.vencimento)}</TableCell>
                         <TableCell className="whitespace-normal">
                           {x.descricao}
-                          <span className="block text-[0.72rem] text-muted-foreground">{x.origem}{x.observacao ? ` · ${x.observacao}` : ""}</span>
+                          <span className="block text-[0.76rem] text-muted-foreground">{x.origem}{x.observacao ? ` · ${x.observacao}` : ""}</span>
                         </TableCell>
                         <TableCell className="text-right font-mono">
                           {moeda(x.valor)}
                           {x.status === "Recebido" && Math.abs(x.valor_recebido - x.valor) > 0.005 && (
-                            <span className="block text-[0.72rem] text-muted-foreground">recebido {moeda(x.valor_recebido)}</span>
+                            <span className="block text-[0.76rem] text-muted-foreground">recebido {moeda(x.valor_recebido)}</span>
                           )}
                         </TableCell>
                         <TableCell>
                           <Pill texto={atrasado ? "Atrasada" : x.status} />
-                          {x.status === "Recebido" && <span className="block text-[0.72rem] text-muted-foreground">{dataBr(x.recebido_em)}{x.forma ? ` · ${x.forma}` : ""}</span>}
+                          {x.status === "Recebido" && <span className="block text-[0.76rem] text-muted-foreground">{dataBr(x.recebido_em)}{x.forma ? ` · ${x.forma}` : ""}</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">

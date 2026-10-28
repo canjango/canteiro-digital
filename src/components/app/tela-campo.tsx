@@ -226,7 +226,7 @@ function CartaoMedicao({ o, m, ultimaAprovada, aberto, aoAbrir }: { o: Obra; m: 
         <span className="font-semibold">{md.numeroMed(m.numero)}</span>
         <Pill texto={m.status} />
         <span className="text-[0.8rem] text-muted-foreground">{dataBr(m.periodo_inicio)} a {dataBr(m.periodo_fim)}</span>
-        <span className="ml-auto font-mono text-sm">{moeda(calc.total_bdi)} <span className="text-[0.72rem] text-muted-foreground">c/ BDI</span></span>
+        <span className="ml-auto font-mono text-sm">{moeda(calc.total_bdi)} <span className="text-[0.76rem] text-muted-foreground">c/ BDI</span></span>
       </button>
       {aberto && (
         <div className="flex flex-col gap-3 border-t p-3.5">
@@ -249,8 +249,8 @@ function CartaoMedicao({ o, m, ultimaAprovada, aberto, aoAbrir }: { o: Obra; m: 
                 {linhas.map((l) => (
                   <TableRow key={l.etapa}>
                     <TableCell className="min-w-32 whitespace-normal">
-                      <span className="font-mono text-[0.72rem] text-muted-foreground">{l.etapa}</span> {l.nome}
-                      {l.anterior > 0 && <span className="block text-[0.7rem] text-muted-foreground sm:hidden">já medido {p100(l.anterior)}</span>}
+                      <span className="font-mono text-[0.76rem] text-muted-foreground">{l.etapa}</span> {l.nome}
+                      {l.anterior > 0 && <span className="block text-[0.74rem] text-muted-foreground sm:hidden">já medido {p100(l.anterior)}</span>}
                     </TableCell>
                     <TableCell className="hidden text-right font-mono sm:table-cell">{moeda(l.orcado)}</TableCell>
                     <TableCell className="hidden text-right font-mono text-muted-foreground sm:table-cell">{p100(l.anterior)}</TableCell>

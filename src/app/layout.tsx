@@ -21,7 +21,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {/* aplica a aparência escolhida antes de desenhar (sem piscar a paleta padrão) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var a=JSON.parse(localStorage.getItem("canteiro-digital:aparencia")||"{}"),h=document.documentElement;if(a.paleta&&a.paleta!=="leitura")h.dataset.paleta=a.paleta;if(a.tema==="escuro")h.classList.add("dark");if(a.tema==="claro")h.classList.add("light")}catch(e){}`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

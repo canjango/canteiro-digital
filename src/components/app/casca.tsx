@@ -148,9 +148,9 @@ function Trilho({ aba }: { aba: Aba }) {
             )}
           >
             <Icone className="size-5" />
-            <span className="text-[0.66rem] font-medium">{rotulo}</span>
+            <span className="text-[0.7rem] font-medium">{rotulo}</span>
             {n > 0 && (
-              <span className="absolute right-[calc(50%-22px)] top-1 min-w-[1.4em] rounded-full bg-critico px-1 text-center font-mono text-[0.62rem] leading-[1.5] text-white" title="atrasadas">
+              <span className="absolute right-[calc(50%-22px)] top-1 min-w-[1.4em] rounded-full bg-critico px-1 text-center font-mono text-[0.68rem] leading-[1.5] text-white" title="atrasadas">
                 {n}
               </span>
             )}
@@ -176,7 +176,7 @@ function Topo({ aba }: { aba: Aba }) {
             {o ? (
               <>
                 <span className="text-foreground">{o.nome}</span>
-                <span className="rounded-sm border bg-card px-1.5 text-[0.66rem] font-bold uppercase tracking-wide">
+                <span className="rounded-sm border bg-card px-1.5 text-[0.7rem] font-bold uppercase tracking-wide">
                   {o.exemplo ? "Exemplo · " : ""}{o.padrao}
                 </span>
               </>
@@ -254,7 +254,7 @@ function EstadoGravacao() {
       aria-live="polite"
       title={status.texto}
       className={cn(
-        "mt-1 truncate font-mono md:text-right text-[0.7rem] text-muted-foreground",
+        "mt-1 truncate font-mono md:text-right text-[0.74rem] text-muted-foreground",
         status.tipo === "erro" && "text-critico",
       )}
     >

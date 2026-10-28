@@ -45,7 +45,7 @@ export function TelaCompras() {
             )}
           >
             <span className="truncate"><span className="md:hidden">{v.curto}</span><span className="hidden md:inline">{v.rotulo}</span></span>
-            <span className={cn("font-mono text-[0.7rem] font-normal", vista === v.k ? "text-sinal" : "text-muted-foreground")}>{v.n}</span>
+            <span className={cn("font-mono text-[0.74rem] font-normal", vista === v.k ? "text-sinal" : "text-muted-foreground")}>{v.n}</span>
           </button>
         ))}
       </nav>
@@ -142,7 +142,7 @@ function LinhaCompra({ o, c, atrasada }: { o: Obra; c: Compra; atrasada: boolean
   const podeExcluir = !["Pedido feito", "Entregue"].includes(c.status);
   return (
     <article className={cn("grid grid-cols-1 gap-2.5 border-b p-3.5 last:border-b-0 md:grid-cols-[auto_minmax(0,1fr)_auto] md:gap-3.5 md:p-4", atrasada && "shadow-[inset_3px_0_0_var(--critico)]")}>
-      <span className="self-start justify-self-start rounded-sm border bg-card px-1.5 py-0.5 text-center font-mono text-[0.68rem] font-semibold text-muted-foreground md:mt-0.5 md:min-w-[2.9rem]">
+      <span className="self-start justify-self-start rounded-sm border bg-card px-1.5 py-0.5 text-center font-mono text-[0.72rem] font-semibold text-muted-foreground md:mt-0.5 md:min-w-[2.9rem]">
         {SIGLA[c.categoria] ?? c.categoria.slice(0, 3).toUpperCase()}
       </span>
       <div className="flex min-w-0 flex-col gap-1.5">
@@ -241,7 +241,7 @@ function BlocoMateriais({ e, linhas, nPend, nEnt }: { e: Etapa; linhas: LinhaMat
   const urgente = Boolean(ini && nPend && dias! >= 0 && dias! <= 15 && !concluida);
   const estado = nEnt === linhas.length ? <Pill texto="Entregue" />
     : concluida ? <Badge variant="ok">Etapa concluída</Badge>
-    : nPend ? <span className={cn("rounded px-1.5 text-[0.68rem] font-semibold", urgente ? "bg-critico text-selo-texto" : "border text-muted-foreground")}>{nPend} a pedir</span>
+    : nPend ? <span className={cn("rounded px-1.5 text-[0.72rem] font-semibold", urgente ? "bg-critico text-selo-texto" : "border text-muted-foreground")}>{nPend} a pedir</span>
     : <Badge variant="info">Tudo pedido</Badge>;
   return (
     <article className={cn("border-b last:border-b-0", urgente && "shadow-[inset_3px_0_0_var(--critico)]")}>
@@ -286,8 +286,8 @@ function LinhaMaterialView({ x }: { x: LinhaMaterial }) {
     <TableRow className="max-sm:grid max-sm:grid-cols-[1fr_auto] max-sm:gap-x-2.5 max-sm:gap-y-1.5 max-sm:border-b max-sm:py-2.5 max-sm:[&>td]:border-0 max-sm:[&>td]:bg-transparent! max-sm:[&>td]:p-0">
       <TableCell className="min-w-48 whitespace-normal max-sm:col-span-full max-sm:min-w-0 max-sm:font-semibold">
         {x.material}
-        {x.categoria !== "Material" && <span className="ml-1 rounded-sm border border-info px-1 text-[0.66rem] font-normal text-info">{x.categoria}</span>}
-        {x.ajustado && <span className="ml-1 whitespace-nowrap rounded-sm border border-atencao px-1 text-[0.66rem] font-normal text-atencao">ajustado ao padrão</span>}
+        {x.categoria !== "Material" && <span className="ml-1 rounded-sm border border-info px-1 text-[0.7rem] font-normal text-info">{x.categoria}</span>}
+        {x.ajustado && <span className="ml-1 whitespace-nowrap rounded-sm border border-atencao px-1 text-[0.7rem] font-normal text-atencao">ajustado ao padrão</span>}
       </TableCell>
       <TableCell className="text-right font-mono max-sm:text-left">{num(x.necessario)} {x.un}</TableCell>
       <TableCell className="whitespace-normal">

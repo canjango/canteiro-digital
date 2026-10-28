@@ -105,7 +105,7 @@ export function TelaPainel() {
           <CardHeader><CardTitle>Avanço por fase</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-2">
             {fases.map(([cat, g]) => (
-              <LinhaBarra key={cat} rotulo={cat} valor={g.progresso} direita={<>{pct(g.progresso)}<small className="block text-[0.7rem] text-muted-foreground">{moeda(g.executado)}</small></>} />
+              <LinhaBarra key={cat} rotulo={cat} valor={g.progresso} direita={<>{pct(g.progresso)}<small className="block text-[0.74rem] text-muted-foreground">{moeda(g.executado)}</small></>} />
             ))}
             <Contagens mapa={r.status_etapas} />
           </CardContent>

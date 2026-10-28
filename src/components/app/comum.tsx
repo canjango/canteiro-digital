@@ -96,7 +96,7 @@ export function Chevrons({ passos, aoEscolher, rotulo }: { passos: Passo[]; aoEs
             {p.estado === "feita" && <CheckIcon className="size-3.5" />}
             {p.rotulo}
           </span>
-          <span className={cn("font-mono text-[0.7rem] text-muted-foreground", p.estado === "atual" && "text-sinal-foreground/75")}>{p.sub}</span>
+          <span className={cn("font-mono text-[0.74rem] text-muted-foreground", p.estado === "atual" && "text-sinal-foreground/75")}>{p.sub}</span>
         </button>
       ))}
     </nav>

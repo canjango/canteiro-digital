@@ -158,7 +158,7 @@ function ItemLista({ ativo, cor, codigo, nome, direita, completo, onClick }: {
       <span className="block h-full min-h-[30px] w-1.5" style={{ background: cor }} />
       <span className="font-mono text-[0.74rem] text-muted-foreground">{codigo}</span>
       <span className="max-w-[9rem] truncate text-[0.85rem] lg:max-w-none">{nome}</span>
-      <span className={cn("hidden font-mono text-[0.72rem] text-muted-foreground lg:inline", completo && "font-semibold text-ok")}>{direita}</span>
+      <span className={cn("hidden font-mono text-[0.76rem] text-muted-foreground lg:inline", completo && "font-semibold text-ok")}>{direita}</span>
     </button>
   );
 }
@@ -299,7 +299,7 @@ function EtapaControle({ o, etapaBase }: { o: Obra; etapaBase: string }) {
   return (
     <>
       <header className="grid grid-cols-[1fr_auto] items-start gap-3.5 border-b p-4 sm:grid-cols-[auto_1fr_auto]">
-        <span className="mt-1 hidden rounded-sm border border-l-4 bg-card px-1.5 py-0.5 font-mono text-[0.68rem] font-semibold text-muted-foreground sm:inline" style={{ borderLeftColor: corEtapaCtl(o, etapaBase) }}>{n}</span>
+        <span className="mt-1 hidden rounded-sm border border-l-4 bg-card px-1.5 py-0.5 font-mono text-[0.72rem] font-semibold text-muted-foreground sm:inline" style={{ borderLeftColor: corEtapaCtl(o, etapaBase) }}>{n}</span>
         <div className="flex min-w-0 flex-col gap-1.5">
           <h2 className="text-lg font-bold leading-tight">{resto.join(". ") || etapaBase}</h2>
           <p className="flex flex-wrap items-center gap-x-2 text-[0.8rem] text-muted-foreground">
@@ -310,13 +310,13 @@ function EtapaControle({ o, etapaBase }: { o: Obra; etapaBase: string }) {
         </div>
         <span className="text-right text-2xl font-bold leading-none tabular-nums">
           {todos.filter((i) => !ct.pendente(i)).length}/{todos.length}
-          <small className="mt-1 block text-[0.72rem] font-normal text-muted-foreground">comprados</small>
+          <small className="mt-1 block text-[0.76rem] font-normal text-muted-foreground">comprados</small>
         </span>
       </header>
       <p className="flex flex-wrap items-center gap-1.5 px-4 pt-2.5 text-[0.82rem] text-muted-foreground">
         <span className="inline-block size-3 rounded-sm border bg-atencao-suave" /> quantidade estimada (validar no projeto) ·
         <span className="inline-block size-3 rounded-sm bg-atencao" /> item novo ·
-        <span className="rounded-sm bg-mo px-1 text-[0.62rem] font-bold text-white">MO</span> mão de obra · toque em <b>Cotar</b> para registrar fornecedores e forma de pagamento.
+        <span className="rounded-sm bg-mo px-1 text-[0.68rem] font-bold text-white">MO</span> mão de obra · toque em <b>Cotar</b> para registrar fornecedores e forma de pagamento.
       </p>
       {itens.length ? (
         <div className="p-2 md:p-3">
@@ -344,9 +344,9 @@ function LinhaItem({ o, it }: { o: Obra; it: ItemControle }) {
   let prazo: React.ReactNode = null;
   if (ate && ct.pendente(it)) {
     const venc = ate < sis.hoje;
-    prazo = <span className={cn("mt-1 block font-mono text-[0.7rem] text-muted-foreground", venc && "font-semibold text-critico")}>{venc ? "vencido " : ""}até {dataBr(ate)}</span>;
-  } else if (it.data_entrega) prazo = <span className="mt-1 block font-mono text-[0.7rem] text-muted-foreground">entregue {dataBr(it.data_entrega)}</span>;
-  else if (it.data_compra) prazo = <span className="mt-1 block font-mono text-[0.7rem] text-muted-foreground">comprado {dataBr(it.data_compra)}</span>;
+    prazo = <span className={cn("mt-1 block font-mono text-[0.74rem] text-muted-foreground", venc && "font-semibold text-critico")}>{venc ? "vencido " : ""}até {dataBr(ate)}</span>;
+  } else if (it.data_entrega) prazo = <span className="mt-1 block font-mono text-[0.74rem] text-muted-foreground">entregue {dataBr(it.data_entrega)}</span>;
+  else if (it.data_compra) prazo = <span className="mt-1 block font-mono text-[0.74rem] text-muted-foreground">comprado {dataBr(it.data_compra)}</span>;
   const prox = PROXIMO[it.status];
   const total = totalCompraItem(it);
   const podeAvancar = prox && !((prox[0] === "Comprado" || prox[0] === "Entregue") && !total);
@@ -360,8 +360,8 @@ function LinhaItem({ o, it }: { o: Obra; it: ItemControle }) {
         it.novo && "[&>td:first-child]:shadow-[inset_4px_0_0_var(--atencao)]",
       )}>
         <TableCell className={cn("min-w-48 whitespace-normal align-top max-xl:col-span-full max-xl:min-w-0", celula)}>
-          <span className="mb-px block text-[0.72rem] text-muted-foreground">
-            {it.tipo === "mao_de_obra" && <span className="mr-1 rounded-sm bg-mo px-1 text-[0.62rem] font-bold text-white">MO</span>}{it.grupo}
+          <span className="mb-px block text-[0.76rem] text-muted-foreground">
+            {it.tipo === "mao_de_obra" && <span className="mr-1 rounded-sm bg-mo px-1 text-[0.68rem] font-bold text-white">MO</span>}{it.grupo}
           </span>
           <b className="font-semibold">{it.descricao}</b>
           {it.especificacao && <small className="block text-[0.74rem] text-muted-foreground">{it.especificacao}</small>}
@@ -372,18 +372,18 @@ function LinhaItem({ o, it }: { o: Obra; it: ItemControle }) {
           )}
         </TableCell>
         <TableCell className={cn("text-right align-top font-mono max-xl:text-left max-xl:text-[0.78rem]", celula)}>
-          <span className="block text-[0.68rem] text-muted-foreground xl:hidden">Quantidade</span>{num(it.quantidade)} {it.unidade}
+          <span className="block text-[0.72rem] text-muted-foreground xl:hidden">Quantidade</span>{num(it.quantidade)} {it.unidade}
         </TableCell>
         <TableCell className={cn("text-right align-top font-mono max-xl:text-left max-xl:text-[0.78rem]", celula)}>
-          <span className="block text-[0.68rem] text-muted-foreground xl:hidden">Base</span>
-          {moeda(totalBase(it))}<small className="block text-[0.7rem] text-ok">{moeda(it.valor_base)}/{it.unidade}</small>
+          <span className="block text-[0.72rem] text-muted-foreground xl:hidden">Base</span>
+          {moeda(totalBase(it))}<small className="block text-[0.74rem] text-ok">{moeda(it.valor_base)}/{it.unidade}</small>
         </TableCell>
         <TableCell className={cn("text-right align-top font-mono max-xl:text-left max-xl:text-[0.78rem]", celula)}>
-          <span className="block text-[0.68rem] text-muted-foreground xl:hidden">Compra</span>
-          {total ? <>{moeda(total)}<small className="block text-[0.7rem] text-muted-foreground">{moeda(valorAplicado(it))}/{it.unidade}</small></> : "—"}
+          <span className="block text-[0.72rem] text-muted-foreground xl:hidden">Compra</span>
+          {total ? <>{moeda(total)}<small className="block text-[0.74rem] text-muted-foreground">{moeda(valorAplicado(it))}/{it.unidade}</small></> : "—"}
         </TableCell>
         <TableCell className={cn("text-right align-top font-mono max-xl:text-left max-xl:text-[0.78rem]", celula)}>
-          <span className="block text-[0.68rem] text-muted-foreground xl:hidden">Diferença</span>
+          <span className="block text-[0.72rem] text-muted-foreground xl:hidden">Diferença</span>
           <Diferenca valor={diferencaItem(it)} formatar={moeda} />
         </TableCell>
         <TableCell className={cn("whitespace-normal align-top max-xl:col-span-2 sm:max-xl:col-span-4", celula)}><Pill texto={it.status} />{prazo}</TableCell>
