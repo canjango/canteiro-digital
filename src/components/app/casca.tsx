@@ -6,14 +6,13 @@ import {
   NotebookPenIcon, ReceiptIcon, RulerIcon, ShoppingCartIcon, UsersIcon,
 } from "lucide-react";
 
-import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 import * as an from "@/lib/core/analise";
 import { PADROES } from "@/lib/core/catalogo";
 import { dataBr, moeda, num } from "@/lib/core/util";
 import { ABAS_SEM_OBRA, type Aba } from "@/lib/core/sistema";
 import { useSistema } from "./provedor";
-import { BotaoTema } from "./tema";
+import { Topbar } from "./topbar";
 import { TelaPainel } from "./tela-painel";
 import { TelaEtapas } from "./tela-etapas";
 import { TelaCompras } from "./tela-compras";
@@ -68,6 +67,7 @@ export function Casca() {
     <div className="min-h-dvh">
       <Trilho aba={aba} />
       <div className="min-w-0 px-4 pb-24 md:ml-[76px] md:px-5 md:pb-8">
+        <Topbar />
         <Topo aba={aba} />
         <main id="conteudo" className="flex flex-col gap-4 pt-4">
           {aba === "painel" && <TelaPainel />}
@@ -166,46 +166,24 @@ function Topo({ aba }: { aba: Aba }) {
   const { sis, acao } = useSistema();
   const o = sis.obra;
   return (
-    <header className="relative flex flex-col gap-1.5 border-b border-dashed pt-[calc(0.85rem+env(safe-area-inset-top))] pb-3 md:sticky md:top-0 md:z-30 md:bg-background">
-      <BotaoTema className="absolute right-0 top-[calc(0.6rem+env(safe-area-inset-top))] md:hidden" />
-      <div className="flex flex-wrap items-end justify-between gap-x-5 gap-y-2">
-        <div className="min-w-0">
-          <p className="mb-1 flex flex-wrap items-center gap-1.5 pr-12 sm:pr-24 text-[0.85rem] text-muted-foreground md:pr-0">
-            <button type="button" className="hover:text-foreground hover:underline" onClick={() => acao("ui.aba", { aba: "inicio" })}>
-              Início
-            </button>
+    <header className="flex flex-col gap-1 border-b border-dashed pt-4 pb-3">
+      <nav aria-label="Caminho" className="flex flex-wrap items-center gap-1.5 text-[0.85rem] text-muted-foreground">
+        <button type="button" className="hover:text-foreground hover:underline" onClick={() => acao("ui.aba", { aba: "inicio" })}>
+          Início
+        </button>
+        {aba !== "inicio" && (
+          <>
             <span aria-hidden>›</span>
-            {o ? (
-              <>
-                <span className="text-foreground">{o.nome}</span>
-                <span className="rounded-sm border bg-card px-1.5 text-[0.7rem] font-bold uppercase tracking-wide">
-                  {o.exemplo ? "Exemplo · " : ""}{o.padrao}
-                </span>
-              </>
-            ) : (
-              <span className="text-foreground">sem obra selecionada</span>
-            )}
-          </p>
-          <h1 className="text-xl font-bold md:text-[1.3rem]">{TITULOS[aba]}</h1>
-        </div>
-        <div className="w-full md:w-auto">
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1 md:w-80 md:flex-none">
-              {o ? (
-                <NativeSelect aria-label="Obra ativa" value={o.id} onChange={(e) => acao("obra.selecionar", { id: e.target.value })}>
-                  {sis.ordenadas().map((x) => (
-                    <option key={x.id} value={x.id}>{x.nome}</option>
-                  ))}
-                </NativeSelect>
-              ) : (
-                <span className="flex h-9 items-center rounded-md border border-dashed px-3 text-sm text-muted-foreground">Nenhuma obra</span>
-              )}
-            </div>
-            <BotaoTema className="hidden md:inline-flex" />
-          </div>
-          <EstadoGravacao />
-        </div>
-      </div>
+            <span className="text-foreground">{TITULOS[aba]}</span>
+          </>
+        )}
+        {o && (
+          <span className="rounded-sm border bg-card px-1.5 text-[0.7rem] font-bold uppercase tracking-wide">
+            {o.exemplo ? "Exemplo · " : ""}{o.padrao}
+          </span>
+        )}
+      </nav>
+      <h1 className="text-xl font-bold md:text-[1.3rem]">{TITULOS[aba]}</h1>
       {o && (
         <p className="text-[0.8rem] text-muted-foreground">
           {[
@@ -234,7 +212,7 @@ function Mensagens() {
   }, [avisoId]); // eslint-disable-line react-hooks/exhaustive-deps
   if ((!msg && !erro) || !visivel) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-4 top-3 z-50 flex justify-center md:left-[92px]">
+    <div className="pointer-events-none fixed inset-x-4 top-[calc(4rem+env(safe-area-inset-top))] z-50 flex justify-center md:left-[92px]">
       <div
         role={erro ? "alert" : "status"}
         className={cn(
@@ -247,26 +225,6 @@ function Mensagens() {
           ×
         </button>
       </div>
-    </div>
-  );
-}
-
-function EstadoGravacao() {
-  const { status } = useSistema();
-  if (!status.texto) return null;
-  const cor = { ok: "text-ok", salvando: "text-atencao", local: "text-info", erro: "text-critico", "": "" }[status.tipo];
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      title={status.texto}
-      className={cn(
-        "mt-1 truncate font-mono md:text-right text-[0.74rem] text-muted-foreground",
-        status.tipo === "erro" && "text-critico",
-      )}
-    >
-      <span className={cn("mr-1", cor)}>●</span>
-      {status.texto}
     </div>
   );
 }
