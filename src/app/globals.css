@@ -320,3 +320,29 @@
     outline-offset: -1px;
   }
 }
+
+/* Fora das camadas do Tailwind de propósito: quando o app roda dentro de outra página
+   (ex.: artefato publicado), a página hospedeira traz estilos próprios sem camada
+   (body { color: #000; font: 14px system-ui }) que venceriam o @layer base.
+   Estas regras garantem cor do texto, fundo, fonte e esquema de cores do tema. */
+html:root {
+  color-scheme: light;
+}
+html:root.dark {
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  html:root:not(.light) {
+    color-scheme: dark;
+  }
+}
+html body {
+  margin: 0;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
