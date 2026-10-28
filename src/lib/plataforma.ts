@@ -9,6 +9,7 @@
 import type { Obra } from "@/lib/core/modelos";
 
 export const CHAVE_LOCAL = "canteiro-digital:v1";
+export const CHAVE_CADASTROS = "canteiro-digital:cadastros:v1";
 const CHAVE_IA = "canteiro-digital:chave-api";
 export const MODELO_API = "claude-sonnet-5-5";
 const RE_CHAVE = /^sk-ant-[A-Za-z0-9_-]{20,}$/;
@@ -52,6 +53,8 @@ export interface Eventos {
   status(s: Status): void;
   /** O modo da revisão mudou (ex.: a capacidade "sample" ficou disponível). */
   modoIa(): void;
+  /** Cadastros compartilhados (contatos e insumos). */
+  cadastros(doc: unknown): void;
 }
 
 function lsLer(chave: string): string | null {
@@ -67,6 +70,16 @@ function lsGravar(chave: string, valor: string): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+function lerJsonLocal(chave: string): unknown {
+  const t = lsLer(chave);
+  if (!t) return null;
+  try {
+    return JSON.parse(t);
+  } catch {
+    return null;
   }
 }
 
@@ -91,6 +104,9 @@ export class Plataforma {
   private eventos: Eventos | null = null;
   private eventosInternos: Eventos | null = null;
   private ultimaCarga: unknown[] | null = null;
+  private ultimosCadastros: unknown = null;
+  private colCad: Colecao | null = null;
+  private cadPendentes = 0;
   private ultimoStatus: Status | null = null;
   private iniciada = false;
   /** Dentro da Claude a rede externa é bloqueada: a chave de API só vale no site. */
@@ -136,6 +152,7 @@ export class Plataforma {
   async iniciar(ouvintes: Eventos): Promise<void> {
     this.eventos = ouvintes;
     if (this.iniciada) {
+      if (this.ultimosCadastros) ouvintes.cadastros(this.ultimosCadastros);
       if (this.ultimaCarga) ouvintes.dados(this.ultimaCarga, true);
       if (this.ultimoStatus) ouvintes.status(this.ultimoStatus);
       if (this.amostra) ouvintes.modoIa();
@@ -152,6 +169,10 @@ export class Plataforma {
         this.eventos?.status(s);
       },
       modoIa: () => this.eventos?.modoIa(),
+      cadastros: (doc) => {
+        this.ultimosCadastros = doc;
+        this.eventos?.cadastros(doc);
+      },
     };
     this.eventosInternos = eventos;
     const usar = (nome: string) =>
@@ -166,9 +187,31 @@ export class Plataforma {
 
     const db = (await usar("db")) as { collection(nome: string): Colecao } | null;
     if (!db) {
+      eventos.cadastros(lerJsonLocal(CHAVE_CADASTROS));
       eventos.dados(lerCopiaLocal(), true);
       eventos.status({ texto: "Salvo apenas neste navegador", tipo: "local" });
       return;
+    }
+    // cadastros compartilhados: um documento "geral" na coleção "cadastros"
+    eventos.cadastros(lerJsonLocal(CHAVE_CADASTROS));
+    try {
+      this.colCad = db.collection("cadastros");
+      this.colCad.onSnapshot(
+        (snap) => {
+          if (this.cadPendentes) return; // eco da própria gravação
+          const doc = snap.docs[0]?.data();
+          if (!doc) return;
+          lsGravar(CHAVE_CADASTROS, JSON.stringify(doc));
+          eventos.cadastros(doc);
+        },
+        (e) => {
+          console.error(e);
+          this.colCad = null;
+        },
+      );
+    } catch (e) {
+      console.error(e);
+      this.colCad = null;
     }
     this.col = db.collection("obras");
     let primeira = true;
@@ -204,6 +247,26 @@ export class Plataforma {
   }
 
   /** Grava as obras alteradas/removidas (e a cópia completa neste navegador). */
+  /** Grava contatos e insumos (compartilhados entre as obras). */
+  persistirCadastros(doc: unknown): void {
+    const ok = lsGravar(CHAVE_CADASTROS, JSON.stringify(doc));
+    if (!this.colCad) {
+      if (!ok) this.emitirStatus({ texto: "Não foi possível salvar neste navegador (espaço cheio ou navegação privada)", tipo: "erro" });
+      return;
+    }
+    this.cadPendentes += 1;
+    this.emitirStatus({ texto: "Salvando…", tipo: "salvando" });
+    this.colCad.doc("geral").set(doc)
+      .then(() => this.emitirStatus({ texto: "Salvo", tipo: "ok" }))
+      .catch((e) => {
+        console.error(e);
+        this.emitirStatus({ texto: "Erro ao salvar os cadastros. Eles estão guardados neste navegador.", tipo: "erro" });
+      })
+      .finally(() => {
+        setTimeout(() => { this.cadPendentes = Math.max(0, this.cadPendentes - 1); }, 300);
+      });
+  }
+
   persistir(gravar: Obra[], remover: string[], todas: Obra[]): void {
     if (!gravar.length && !remover.length) return;
     const salvouLocal = lsGravar(CHAVE_LOCAL, JSON.stringify(todas));

@@ -65,6 +65,11 @@ export function criarObra(d: DadosObra): Obra {
     revisoes: [],
     controle: [],
     controle_origem: "",
+    solicitacoes: [],
+    ordens: [],
+    recebimentos: [],
+    diario: [],
+    medicoes: [],
     id: novoId("obra"),
   };
   obra.etapas = ETAPAS_PADRAO.map((e) => etapaDoCatalogo(e, orc));

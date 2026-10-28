@@ -7,6 +7,18 @@ A cada push na branch `main`, o GitHub Actions verifica os tipos, roda os testes
 (`next build` com `output: "export"`) e publica no GitHub Pages. No site, os dados ficam salvos no
 navegador de cada pessoa (localStorage, chave `canteiro-digital:v1`, o mesmo formato da versão anterior).
 
+## Módulos (painel em grade da tela Início)
+
+| Grupo | Módulos |
+|---|---|
+| Acompanhamento da obra | Painel, Etapas construtivas, Diário de obra (RDO), Medição de obra, Tarefas |
+| Suprimentos | Solicitações de compras → Ordem de compra (aprovação, recebimento com NF), Controle de compras, Pedidos de compra, Lista de materiais, Insumos |
+| Financeiro | Recebimentos (parcelas do contrato e das medições aprovadas) |
+| Cadastros | Contatos (fornecedores, prestadores, clientes…), Obras |
+
+Contatos e insumos são compartilhados entre as obras (coleção `cadastros`). Ordens de compra aprovadas
+entram no comprometido do orçamento; o material recebido entra no realizado.
+
 ## Estrutura
 - `src/lib/core/` — núcleo sem React (testável):
   - `modelos.ts` — Obra, Etapa, Compra, Tarefa, ItemControle (mesmos campos do JSON gravado) e leitura tolerante de dados antigos

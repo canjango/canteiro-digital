@@ -6,13 +6,20 @@ import * as ia from "./assistente";
 import * as ct from "./controle";
 import * as sv from "./servicos";
 import { etapaConcluida } from "./analise";
-import { CATEGORIAS } from "./catalogo";
+import { CATEGORIAS, MATERIAIS, etapaPadrao } from "./catalogo";
+import * as md from "./modulos";
+import { progressoEtapa } from "./analise";
 import {
   STATUS_CONTROLE, etapaDe, exportarObra, itemControleDe, lerObra, type Obra,
 } from "./modelos";
 import { ValidacaoErro, hojeLocal, lerData, lerNumero, limparTexto, moeda, novoId, num, somarDias } from "./util";
 
-export const ABAS = ["painel", "etapas", "compras", "tarefas", "obras"] as const;
+export const ABAS = [
+  "inicio", "painel", "etapas", "compras", "tarefas", "obras",
+  "solicitacoes", "ordens", "recebimentos", "diario", "medicoes", "contatos", "insumos",
+] as const;
+/** Telas que funcionam sem obra selecionada (cadastros). */
+export const ABAS_SEM_OBRA: readonly string[] = ["inicio", "obras", "contatos", "insumos"];
 export type Aba = (typeof ABAS)[number];
 export const FILTROS_COMPRA = ["abertas", "atrasadas", "todas", "Entregue", "Cancelada"] as const;
 export type VistaCompras = "controle" | "pedidos" | "materiais";
@@ -43,6 +50,12 @@ export interface EstadoUi {
   ctrl_novo: boolean;
   figura: { codigo: string; item: string } | null;
   mat_abertas: string[];
+  /** Registro aberto para edição/detalhe nas telas de módulos ("" = nenhum). */
+  editando: string;
+  /** Formulário de novo registro aberto (nome do módulo, "" = nenhum). */
+  novo: string;
+  /** Registro aguardando confirmação de exclusão. */
+  confirmar: string;
 }
 
 export type Dados = Record<string, unknown>;
@@ -50,6 +63,8 @@ export interface Resultado {
   ok: boolean;
   alteradas: string[];
   removidas: string[];
+  /** Os cadastros compartilhados (contatos e insumos) mudaram e precisam ser gravados. */
+  cadastros?: boolean;
 }
 
 export const ERROS_IA: Record<string, string> = {
@@ -75,7 +90,7 @@ export class Sistema {
   pedidoIa: { id: string; texto: string } | null = null;
   ui: EstadoUi = {
     obra: "",
-    aba: "painel",
+    aba: "inicio",
     abertas: [],
     fase: "",
     filtro_compra: "abertas",
@@ -98,7 +113,12 @@ export class Sistema {
     ctrl_novo: false,
     figura: null,
     mat_abertas: [],
+    editando: "",
+    novo: "",
+    confirmar: "",
   };
+  /** Contatos e insumos, compartilhados entre as obras. */
+  cadastros: md.Cadastros = { contatos: [], insumos: [] };
 
   constructor(private readonly hojeFixo: string | null = null) {}
 
@@ -169,7 +189,7 @@ export class Sistema {
     }
     try {
       const r = fn({ ...(dados ?? {}) }) ?? {};
-      return { ok: true, alteradas: r.alteradas ?? [], removidas: r.removidas ?? [] };
+      return { ok: true, alteradas: r.alteradas ?? [], removidas: r.removidas ?? [], cadastros: Boolean(r.cadastros) };
     } catch (e) {
       if (e instanceof ValidacaoErro) {
         this.ui.erro = e.message;
@@ -184,14 +204,49 @@ export class Sistema {
     return { alteradas: [this.ui.obra] };
   }
 
+  private mudouCadastro(msg: string): Partial<Resultado> {
+    this.ui.msg = msg;
+    return { cadastros: true };
+  }
+
+  /** Carrega os cadastros compartilhados vindos do banco. */
+  carregarCadastros(doc: unknown): void {
+    this.cadastros = md.lerCadastros(doc);
+  }
+
+  private limparEdicao() {
+    Object.assign(this.ui, { editando: "", novo: "", confirmar: "" });
+  }
+
   private readonly acoes: Record<string, Acao> = {
     // ---------------------------------------------------------- navegação
     "ui.aba": (d) => {
       const aba = s(d.aba) || "painel";
       if (!(ABAS as readonly string[]).includes(aba)) throw new ValidacaoErro("Aba inválida");
+      if (!this.obra && !ABAS_SEM_OBRA.includes(aba)) throw new ValidacaoErro("Selecione ou crie uma obra primeiro");
       this.ui.aba = aba as Aba;
       this.ui.confirmar_exclusao = "";
       this.ui.figura = null;
+      if (s(d.vista)) {
+        if (!["controle", "pedidos", "materiais"].includes(s(d.vista))) throw new ValidacaoErro("Vista inválida");
+        this.ui.compras_vista = s(d.vista) as VistaCompras;
+      }
+      this.limparEdicao();
+    },
+    "ui.editar": (d) => {
+      const id = s(d.id);
+      this.ui.editando = this.ui.editando === id ? "" : id;
+      this.ui.confirmar = "";
+      this.ui.novo = "";
+    },
+    "ui.novo": (d) => {
+      const qual = s(d.qual);
+      this.ui.novo = this.ui.novo === qual ? "" : qual;
+      this.ui.editando = "";
+      this.ui.confirmar = "";
+    },
+    "ui.cancelar": () => {
+      this.ui.confirmar = "";
     },
     "ui.figura": (d) => {
       const etapa = etapaDe(this.ativa(), s(d.codigo));
@@ -264,8 +319,9 @@ export class Sistema {
       Object.assign(this.ui, {
         obra: id, abertas: [], fase: "", figura: null, filtro_etapa: "", confirmar_exclusao: "", mat_abertas: [],
         ctrl_etapa: "", ctrl_status: "", ctrl_item: "", ctrl_excluir: "", ctrl_novo: false, rev_aberta: "",
+        editando: "", novo: "", confirmar: "",
       });
-      if (this.ui.aba === "obras") this.ui.aba = "painel";
+      if (this.ui.aba === "obras") this.ui.aba = "inicio";
     },
     "obra.criar": (d) => {
       const o = sv.criarObra({
@@ -532,6 +588,206 @@ export class Sistema {
       ct.removerItem(o, it.id);
       Object.assign(this.ui, { ctrl_excluir: "", ctrl_item: "" });
       return this.mudou(`Item “${it.descricao}” removido do controle`);
+    },
+
+    // ---------------------------------------------------------- cadastros: contatos e insumos
+    "contato.salvar": (d) => {
+      const c = md.salvarContato(this.cadastros, d);
+      this.limparEdicao();
+      return this.mudouCadastro(s(d.id) ? `Contato “${c.nome}” atualizado` : `Contato “${c.nome}” cadastrado`);
+    },
+    "contato.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      const c = md.removerContato(this.cadastros, id);
+      this.limparEdicao();
+      return this.mudouCadastro(`Contato “${c.nome}” excluído`);
+    },
+    "insumo.salvar": (d) => {
+      const i = md.salvarInsumo(this.cadastros, d, this.hoje);
+      this.limparEdicao();
+      return this.mudouCadastro(s(d.id) ? `Insumo “${i.descricao}” atualizado` : `Insumo “${i.descricao}” cadastrado`);
+    },
+    "insumo.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      const i = md.removerInsumo(this.cadastros, id);
+      this.limparEdicao();
+      return this.mudouCadastro(`Insumo “${i.descricao}” excluído`);
+    },
+    "insumo.importar": (d) => {
+      const origem = s(d.origem);
+      const novos: Omit<md.Insumo, "id" | "atualizado_em">[] = [];
+      if (origem === "planilha") {
+        for (const [ie, grupo, tipo, desc, , un, , base] of ct.ITENS_BASE) {
+          novos.push({
+            codigo: "", descricao: desc, unidade: un, tipo: tipo === "MO" ? "Mão de obra" : "Material",
+            grupo: `${ct.ETAPAS_BASE[ie]} · ${grupo}`, preco: base, fonte: "Planilha de compras (out/2026)",
+          });
+        }
+      } else if (origem === "materiais") {
+        for (const [codigo, lista] of Object.entries(MATERIAIS)) {
+          const etapa = etapaPadrao(codigo).nome;
+          for (const m of lista) {
+            novos.push({
+              codigo: m.chave, descricao: m.material, unidade: m.un, preco: 0, grupo: etapa, fonte: "Lista de materiais (catálogo)",
+              tipo: m.categoria === "Equipamento/locação" ? "Equipamento" : m.categoria === "Serviço terceirizado" ? "Serviço" : "Material",
+            });
+          }
+        }
+      } else if (origem === "ordens") {
+        const o = this.ativa();
+        for (const oc of [...o.ordens].filter(md.ocComprometida).sort((a, b) => b.data.localeCompare(a.data))) {
+          for (const it of oc.itens) {
+            if (it.valor_unitario > 0) {
+              novos.push({
+                codigo: "", descricao: it.descricao, unidade: it.unidade, tipo: "Material", grupo: "", preco: it.valor_unitario,
+                fonte: `${md.numeroOC(oc.numero)} · ${oc.fornecedor}`,
+              });
+            }
+          }
+        }
+      } else throw new ValidacaoErro("Origem de importação inválida");
+      const n = md.importarInsumos(this.cadastros, novos, this.hoje);
+      return this.mudouCadastro(n ? `${n} insumo(s) importado(s)` : "Nenhum insumo novo: todos já estavam cadastrados");
+    },
+
+    // ---------------------------------------------------------- solicitações de compra
+    "sol.criar": (d) => {
+      const x = md.criarSolicitacao(this.ativa(), d, this.hoje);
+      this.limparEdicao();
+      return this.mudou(`${md.numeroSC(x.numero)} enviada para aprovação`);
+    },
+    "sol.aprovar": (d) => {
+      const x = md.decidirSolicitacao(this.ativa(), s(d.id), true);
+      return this.mudou(`${md.numeroSC(x.numero)} aprovada — gere a ordem de compra`);
+    },
+    "sol.recusar": (d) => {
+      const x = md.decidirSolicitacao(this.ativa(), s(d.id), false, s(d.motivo));
+      this.limparEdicao();
+      return this.mudou(`${md.numeroSC(x.numero)} recusada`);
+    },
+    "sol.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      md.removerSolicitacao(this.ativa(), id);
+      this.limparEdicao();
+      return this.mudou("Solicitação excluída");
+    },
+
+    // ---------------------------------------------------------- ordens de compra
+    "oc.criar": (d) => {
+      const oc = md.criarOrdem(this.ativa(), this.cadastros, d, this.hoje);
+      this.limparEdicao();
+      this.ui.aba = "ordens";
+      this.ui.editando = oc.id;
+      return this.mudou(`${md.numeroOC(oc.numero)} criada em rascunho — confira preços e aprove`);
+    },
+    "oc.editar": (d) => {
+      const oc = md.editarOrdem(this.ativa(), s(d.id), d);
+      return this.mudou(`${md.numeroOC(oc.numero)} salva`);
+    },
+    "oc.status": (d) => {
+      const oc = md.mudarStatusOrdem(this.ativa(), s(d.id), s(d.status), s(d.aprovador));
+      return this.mudou(`${md.numeroOC(oc.numero)}: ${oc.status.toLowerCase()}`);
+    },
+    "oc.receber": (d) => {
+      const oc = md.receberMaterial(this.ativa(), s(d.id), d, this.hoje);
+      return this.mudou(`Recebimento registrado na ${md.numeroOC(oc.numero)} (${oc.status.toLowerCase()})`);
+    },
+    "oc.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      md.removerOrdem(this.ativa(), id);
+      this.limparEdicao();
+      return this.mudou("Ordem de compra excluída");
+    },
+
+    // ---------------------------------------------------------- recebimentos (contas a receber)
+    "rec.criar": (d) => {
+      const r = md.criarRecebimento(this.ativa(), d);
+      this.limparEdicao();
+      return this.mudou(`Recebimento “${r.descricao}” lançado`);
+    },
+    "rec.parcelas": (d) => {
+      const n = md.gerarParcelas(this.ativa(), d);
+      this.limparEdicao();
+      return this.mudou(`${n} parcela(s) geradas`);
+    },
+    "rec.baixar": (d) => {
+      const r = md.baixarRecebimento(this.ativa(), s(d.id), d, this.hoje);
+      this.limparEdicao();
+      return this.mudou(`“${r.descricao}” recebido`);
+    },
+    "rec.estornar": (d) => {
+      const r = md.estornarRecebimento(this.ativa(), s(d.id));
+      return this.mudou(`“${r.descricao}” voltou para previsto`);
+    },
+    "rec.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      md.removerRecebimento(this.ativa(), id);
+      this.limparEdicao();
+      return this.mudou("Recebimento excluído");
+    },
+
+    // ---------------------------------------------------------- diário de obra
+    "rdo.salvar": (d) => {
+      const x = md.salvarDiario(this.ativa(), d);
+      this.limparEdicao();
+      return this.mudou(`Diário de ${x.data.split("-").reverse().join("/")} salvo`);
+    },
+    "rdo.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      md.removerDiario(this.ativa(), id);
+      this.limparEdicao();
+      return this.mudou("Diário excluído");
+    },
+
+    // ---------------------------------------------------------- medição de obra
+    "med.criar": (d) => {
+      const o = this.ativa();
+      const m = md.criarMedicao(o, d, this.hoje, (cod) => progressoEtapa(etapaDe(o, cod)));
+      this.limparEdicao();
+      this.ui.editando = m.id;
+      return this.mudou(`${md.numeroMed(m.numero)} criada com o avanço do checklist — confira e aprove`);
+    },
+    "med.salvar": (d) => {
+      const m = md.salvarMedicao(this.ativa(), s(d.id), d);
+      return this.mudou(`${md.numeroMed(m.numero)} salva`);
+    },
+    "med.aprovar": (d) => {
+      const m = md.aprovarMedicao(this.ativa(), s(d.id), d, this.hoje);
+      return this.mudou(`${md.numeroMed(m.numero)} aprovada${m.recebimento ? " — parcela lançada em Recebimentos" : ""}`);
+    },
+    "med.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      md.removerMedicao(this.ativa(), id);
+      this.limparEdicao();
+      return this.mudou("Medição excluída");
     },
 
     // ---------------------------------------------------------- tarefas

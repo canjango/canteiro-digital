@@ -7,6 +7,7 @@ import {
 import { arred, dataBr, diasEntre, hojeLocal, moeda, pct, somarDias } from "./util";
 import { situacaoMateriais } from "./servicos";
 import { programacao } from "./controle";
+import { numeroOC, ocComprometida, totalItens, totalOC } from "./modulos";
 
 export const COMPROMETIDAS = ["Aprovada", "Pedido feito", "Entregue"] as const;
 export const ABERTAS = ["Solicitada", "Em cotação", "Aprovada", "Pedido feito"] as const;
@@ -19,7 +20,7 @@ export interface Alerta {
   nivel: NivelAlerta;
   titulo: string;
   detalhe: string;
-  aba: "painel" | "etapas" | "compras" | "tarefas" | "obras";
+  aba: string;
 }
 const ORDEM_NIVEL: Record<NivelAlerta, number> = { critico: 0, atencao: 1, info: 2 };
 
@@ -30,6 +31,8 @@ export function progressoEtapa(e: Etapa): number {
   if (!e.checklist.length) return 0;
   return e.checklist.filter((i) => i.feito).length / e.checklist.length;
 }
+
+const etapaFinalConcluida = (o: Obra) => o.etapas.length > 0 && o.etapas.every((e) => e.checklist.length > 0 && e.checklist.every((i) => i.feito));
 
 export const etapaConcluida = (e: Etapa) => e.checklist.length > 0 && e.checklist.every((i) => i.feito);
 
@@ -107,6 +110,14 @@ export function porCategoriaEtapa(o: Obra): Map<string, GrupoFase> {
 }
 
 // ================================================================ custos
+/** Valor do material já recebido de uma ordem de compra (proporcional às quantidades). */
+export function valorRecebidoOC(oc: import("./modulos").OrdemCompra): number {
+  const bruto = totalItens(oc.itens);
+  if (!bruto) return 0;
+  const recebido = oc.itens.reduce((s, i) => s + i.recebido * i.valor_unitario, 0);
+  return (recebido / bruto) * totalOC(oc);
+}
+
 export const comBdi = (o: Obra, valor: number) => arred(valor * (1 + (o.bdi || 0) / 100));
 export const precoVenda = (o: Obra) => comBdi(o, o.orcamento_total);
 
@@ -130,8 +141,11 @@ export function custosPorEtapa(o: Obra): LinhaCusto[] {
     const ctl = o.controle.filter((i) => i.etapa === e.codigo);
     const comprometido = compras.filter((c) => comprometida(c.status)).reduce((s, c) => s + valorTotalCompra(c), 0)
       + ctl.filter((i) => ctlComprado(i.status)).reduce((s, i) => s + totalCompraItem(i), 0);
+    const ocs = o.ordens.filter((x) => x.etapa === e.codigo && ocComprometida(x));
     const realizado = compras.filter((c) => c.status === "Entregue").reduce((s, c) => s + valorTotalCompra(c), 0)
-      + ctl.filter((i) => i.status === "Entregue").reduce((s, i) => s + totalCompraItem(i), 0);
+      + ctl.filter((i) => i.status === "Entregue").reduce((s, i) => s + totalCompraItem(i), 0)
+      + ocs.reduce((s, x) => s + valorRecebidoOC(x), 0);
+    const comprometidoTotal = comprometido + ocs.reduce((s, x) => s + totalOC(x), 0);
     const prog = progressoEtapa(e);
     const executado = arred(e.orcamento * prog); // medição: orçado × avanço físico
     return {
@@ -142,10 +156,10 @@ export function custosPorEtapa(o: Obra): LinhaCusto[] {
       executado,
       executado_bdi: comBdi(o, executado),
       a_executar: arred(e.orcamento - executado),
-      comprometido: arred(comprometido),
+      comprometido: arred(comprometidoTotal),
       realizado: arred(realizado),
-      saldo: arred(e.orcamento - comprometido),
-      uso: e.orcamento ? comprometido / e.orcamento : null,
+      saldo: arred(e.orcamento - comprometidoTotal),
+      uso: e.orcamento ? comprometidoTotal / e.orcamento : null,
     };
   });
 }
@@ -154,6 +168,9 @@ export function custosPorCategoria(o: Obra): Map<string, number> {
   const res = new Map<string, number>(CATEGORIAS_COMPRA.map((c) => [c, 0]));
   for (const c of o.compras) {
     if (comprometida(c.status)) res.set(c.categoria, arred((res.get(c.categoria) ?? 0) + valorTotalCompra(c)));
+  }
+  for (const oc of o.ordens) {
+    if (ocComprometida(oc)) res.set("Material", arred((res.get("Material") ?? 0) + totalOC(oc)));
   }
   for (const i of o.controle) {
     if (ctlComprado(i.status)) {
@@ -232,6 +249,9 @@ export function resumoFinanceiro(o: Obra): ResumoFinanceiro {
     + o.controle.filter((i) => ctlComprado(i.status)).reduce((s, i) => s + totalCompraItem(i), 0);
   const realizado = o.compras.filter((c) => c.status === "Entregue").reduce((s, c) => s + valorTotalCompra(c), 0)
     + o.controle.filter((i) => i.status === "Entregue").reduce((s, i) => s + totalCompraItem(i), 0);
+  const ocs = o.ordens.filter(ocComprometida);
+  const comprometidoOC = ocs.reduce((s, x) => s + totalOC(x), 0);
+  const realizadoOC = ocs.reduce((s, x) => s + valorRecebidoOC(x), 0);
   const emAberto = o.compras.filter((c) => c.status === "Solicitada" || c.status === "Em cotação")
     .reduce((s, c) => s + valorTotalCompra(c), 0);
   const orc = o.orcamento_total;
@@ -243,11 +263,11 @@ export function resumoFinanceiro(o: Obra): ResumoFinanceiro {
     executado: arred(executado),
     a_executar: arred(orcadoEtapas - executado),
     executado_pct: orcadoEtapas ? executado / orcadoEtapas : null,
-    comprometido: arred(comprometido),
-    realizado: arred(realizado),
+    comprometido: arred(comprometido + comprometidoOC),
+    realizado: arred(realizado + realizadoOC),
     em_aberto: arred(emAberto),
-    saldo: arred(orc - comprometido),
-    uso: orc ? comprometido / orc : null,
+    saldo: arred(orc - comprometido - comprometidoOC),
+    uso: orc ? (comprometido + comprometidoOC) / orc : null,
     bdi: o.bdi,
     executado_bdi: comBdi(o, executado),
     preco_venda: precoVenda(o),
@@ -349,6 +369,29 @@ export function alertas(o: Obra, hoje = hojeLocal()): Alerta[] {
       });
     }
   }
+  // suprimentos e financeiro (módulos)
+  const aguardando = o.solicitacoes.filter((x) => x.status === "Aguardando aprovação");
+  if (aguardando.length) {
+    out.push({ nivel: "atencao", titulo: `${aguardando.length} solicitação(ões) de compra aguardando aprovação`, detalhe: "Aprove ou recuse em Solicitações de compras", aba: "solicitacoes" });
+  }
+  for (const oc of o.ordens) {
+    if (["Aprovada", "Enviada", "Recebida parcialmente"].includes(oc.status) && oc.entrega_prevista && oc.entrega_prevista < hoje) {
+      out.push({ nivel: "critico", titulo: `Entrega atrasada: ${numeroOC(oc.numero)} · ${oc.fornecedor}`, detalhe: `Previsto para ${dataBr(oc.entrega_prevista)} · ${oc.status}`, aba: "ordens" });
+    }
+  }
+  const atrasados = o.recebimentos.filter((r) => r.status === "Previsto" && r.vencimento && r.vencimento < hoje);
+  if (atrasados.length) {
+    const v = atrasados.reduce((s, r) => s + r.valor, 0);
+    out.push({ nivel: "critico", titulo: `${atrasados.length} recebimento(s) do cliente em atraso`, detalhe: `${moeda(v)} vencidos · veja Recebimentos`, aba: "recebimentos" });
+  }
+  if (o.inicio && o.inicio <= hoje && (!o.fim_previsto || hoje <= o.fim_previsto) && !etapaFinalConcluida(o)) {
+    const ultimo = o.diario.reduce((m, d) => (d.data > m ? d.data : m), "");
+    const dias = ultimo ? diasEntre(ultimo, hoje) : null;
+    if (dias === null || dias > 2) {
+      out.push({ nivel: "info", titulo: dias === null ? "Diário de obra ainda sem registros" : `Diário de obra sem registro há ${dias} dias`, detalhe: "Registre clima, efetivo e atividades do dia", aba: "diario" });
+    }
+  }
+
   for (const l of custosPorEtapa(o)) {
     if (l.orcado && l.comprometido > l.orcado) {
       out.push({ nivel: "critico", titulo: `Estouro de orçamento: ${l.nome}`, detalhe: `Comprometido ${moeda(l.comprometido)} de ${moeda(l.orcado)}`, aba: "compras" });

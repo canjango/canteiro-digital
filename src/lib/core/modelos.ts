@@ -3,6 +3,7 @@
  * versão anterior (snake_case), para que as obras já salvas continuem abrindo.
  */
 import { ValidacaoErro, arred, dataSegura, novoId } from "./util";
+import { lerModulos, type ModulosObra } from "./modulos";
 
 export const STATUS_COMPRA = ["Solicitada", "Em cotação", "Aprovada", "Pedido feito", "Entregue", "Cancelada"] as const;
 export type StatusCompra = (typeof STATUS_COMPRA)[number];
@@ -148,7 +149,7 @@ export interface Revisao {
   formato_livre: boolean;
 }
 
-export interface Obra {
+export interface Obra extends ModulosObra {
   nome: string;
   cliente: string;
   endereco: string;
@@ -394,6 +395,7 @@ export function lerObra(v: unknown): Obra {
     revisoes: lista(d.revisoes).map(lerRevisao).filter((r): r is Revisao => r !== null),
     controle: lista(d.controle).map(lerItemControle),
     controle_origem: txt(d.controle_origem),
+    ...lerModulos(d),
     id: txt(d.id) || novoId("obra"),
   };
 }

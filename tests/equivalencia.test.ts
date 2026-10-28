@@ -50,7 +50,9 @@ describe("obra de exemplo", () => {
   });
 
   it("alertas iguais (mesma ordem e texto)", () => {
-    expect(r.alertas.map((a) => [a.nivel, a.titulo, a.detalhe, a.aba])).toEqual(golden.alertas);
+    // alertas dos módulos novos (diário, solicitações, ordens, recebimentos) não existiam na versão anterior
+    const novos = ["diario", "solicitacoes", "ordens", "recebimentos"];
+    expect(r.alertas.filter((a) => !novos.includes(a.aba)).map((a) => [a.nivel, a.titulo, a.detalhe, a.aba])).toEqual(golden.alertas);
   });
 
   it("custos por etapa", () => {
@@ -70,7 +72,11 @@ describe("obra de exemplo", () => {
   });
 
   it("pedido de revisão para a Claude tem os mesmos dados", () => {
-    const dados = (t: string) => JSON.parse(t.split("\nDADOS:\n")[1]);
+    const dados = (t: string) => {
+      const d = JSON.parse(t.split("\nDADOS:\n")[1]);
+      d.alertas_do_sistema = d.alertas_do_sistema.filter((x: string) => !x.includes("Diário de obra"));
+      return d;
+    };
     expect(dados(montarPedido(o, "obra", "", "custo", H))).toEqual(dados(golden.pedido_obra));
     expect(dados(montarPedido(o, "etapa", "EST", "", H))).toEqual(dados(golden.pedido_etapa));
     expect(montarPedido(o, "obra", "", "custo", H).split("\nDADOS:\n")[0]).toBe(golden.pedido_obra.split("\nDADOS:\n")[0]);

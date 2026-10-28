@@ -44,6 +44,19 @@ const VARIANTE: Record<string, VarianteBadge> = {
   Comprado: "info",
   "Não solicitado": "outline",
   Parcial: "atencao",
+  "Aguardando aprovação": "atencao",
+  Atendida: "ok",
+  Recusada: "riscado",
+  Rascunho: "outline",
+  Enviada: "info",
+  "Recebida parcialmente": "atencao",
+  Recebida: "ok",
+  Previsto: "outline",
+  Recebido: "ok",
+  "Em elaboração": "sinal",
+  Impraticável: "critico",
+  "Parcialmente praticável": "atencao",
+  Praticável: "ok",
 };
 
 /** Etiqueta pequena e sólida de situação/prioridade. */

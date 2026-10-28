@@ -62,6 +62,7 @@ export function ProvedorSistema({ children, hoje = null }: { children: React.Rea
       }
       const gravar = r.alteradas.filter((id) => sis.obras.has(id)).map((id) => sis.exportar(id));
       if (p && (gravar.length || r.removidas.length)) p.persistir(gravar, r.removidas, sis.todas());
+      if (p && r.cadastros) p.persistirCadastros(JSON.parse(JSON.stringify(sis.cadastros)));
       const pedido = sis.pedidoIa;
       if (pedido && p) {
         sis.pedidoIa = null;
@@ -97,6 +98,10 @@ export function ProvedorSistema({ children, hoje = null }: { children: React.Rea
       },
       status: (s) => setStatus(s),
       modoIa: () => atualizarModoIa(),
+      cadastros: (doc) => {
+        sis.carregarCadastros(doc);
+        redesenhar();
+      },
     });
   }, [sis, redesenhar, atualizarModoIa]);
 

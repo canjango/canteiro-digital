@@ -62,7 +62,7 @@ describe("obra e etapas", () => {
     const alv = o.etapas.find((e) => e.codigo === "ALV")!;
     const item = alv.checklist.find((i) => !i.feito)!;
     const r = s.despachar("etapa.item", { codigo: "ALV", item: item.id });
-    expect(r).toEqual({ ok: true, alteradas: [o.id], removidas: [] });
+    expect(r).toEqual({ ok: true, alteradas: [o.id], removidas: [], cadastros: false });
     expect(item.feito).toBe(true);
     expect(item.concluido_em).toBe(H);
     s.despachar("etapa.todos", { codigo: "ALV", feito: "1" });
