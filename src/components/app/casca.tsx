@@ -89,7 +89,6 @@ export function Casca() {
       </div>
       {o && <JanelaFigura />}
       <Mensagens />
-      <EstadoGravacao />
     </div>
   );
 }
@@ -197,6 +196,7 @@ function Topo({ aba }: { aba: Aba }) {
           ) : (
             <span className="flex h-9 items-center rounded-md border border-dashed px-3 text-sm text-muted-foreground">Nenhuma obra</span>
           )}
+          <EstadoGravacao />
         </div>
       </div>
       {o && (
@@ -252,9 +252,10 @@ function EstadoGravacao() {
     <div
       role="status"
       aria-live="polite"
+      title={status.texto}
       className={cn(
-        "fixed bottom-[calc(4.6rem+env(safe-area-inset-bottom))] right-3 z-30 max-w-[calc(100vw-32px)] rounded-full border bg-card px-3 py-1 font-mono text-xs text-muted-foreground md:bottom-3",
-        status.tipo === "erro" && "border-critico text-critico",
+        "mt-1 truncate font-mono md:text-right text-[0.7rem] text-muted-foreground",
+        status.tipo === "erro" && "text-critico",
       )}
     >
       <span className={cn("mr-1", cor)}>●</span>

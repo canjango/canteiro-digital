@@ -26,13 +26,13 @@ export function TelaCompras() {
   const aPedir = o.etapas.filter((e) => !an.etapaConcluida(e))
     .reduce((s, e) => s + situacaoMateriais(o, e.codigo).filter((x) => x.situacao === "Não solicitado").length, 0);
   const vistas = [
-    { k: "controle", rotulo: "Controle de compras", n: o.controle.length ? `${o.controle.length} itens` : "novo" },
-    { k: "pedidos", rotulo: "Pedidos de compra", n: String(o.compras.length) },
-    { k: "materiais", rotulo: "Lista de materiais por etapa", n: `${aPedir} a pedir` },
+    { k: "controle", rotulo: "Controle de compras", curto: "Controle", n: o.controle.length ? `${o.controle.length} itens` : "novo" },
+    { k: "pedidos", rotulo: "Pedidos de compra", curto: "Pedidos", n: `${o.compras.length} pedido(s)` },
+    { k: "materiais", rotulo: "Lista de materiais por etapa", curto: "Materiais", n: `${aPedir} a pedir` },
   ];
   return (
     <>
-      <nav aria-label="Compras" className="flex overflow-x-auto border-b">
+      <nav aria-label="Compras" className="grid grid-cols-3 gap-1 rounded-lg border bg-card p-1">
         {vistas.map((v) => (
           <button
             key={v.k}
@@ -40,11 +40,12 @@ export function TelaCompras() {
             aria-current={vista === v.k ? "page" : undefined}
             onClick={() => acao("ui.vista_compras", { vista: v.k })}
             className={cn(
-              "-mb-px whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground md:px-4",
-              vista === v.k && "border-foreground font-semibold text-foreground",
+              "flex min-w-0 flex-col items-center gap-0.5 rounded-md px-2 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:flex-row md:justify-center md:gap-2",
+              vista === v.k && "bg-trilho font-semibold text-white shadow-[inset_0_-3px_0_var(--sinal)] hover:bg-trilho hover:text-white",
             )}
           >
-            {v.rotulo} <span className="font-mono text-xs font-normal text-muted-foreground">{v.n}</span>
+            <span className="truncate"><span className="md:hidden">{v.curto}</span><span className="hidden md:inline">{v.rotulo}</span></span>
+            <span className={cn("font-mono text-[0.7rem] font-normal", vista === v.k ? "text-sinal" : "text-muted-foreground")}>{v.n}</span>
           </button>
         ))}
       </nav>

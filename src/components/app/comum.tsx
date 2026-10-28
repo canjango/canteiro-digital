@@ -8,17 +8,17 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { valorBr } from "@/lib/core/util";
 
-// cor de cada fase (quadradinho colorido, como as disciplinas de um projeto)
+// cor de cada fase: escala do preto ao amarelo, na ordem em que a obra avança
 export const COR_FASE: Record<string, string> = {
-  Preparação: "#8d6e4f",
-  Infraestrutura: "#e0782f",
-  Supraestrutura: "#c8372d",
-  "Vedação e cobertura": "#2f9a58",
-  Instalações: "#2c87d0",
-  Acabamentos: "#7e3fa0",
-  Entrega: "#d9b40f",
+  Preparação: "#1f1d19",
+  Infraestrutura: "#4a463d",
+  Supraestrutura: "#77705f",
+  "Vedação e cobertura": "#a39673",
+  Instalações: "#c9a92e",
+  Acabamentos: "#e8bf0e",
+  Entrega: "#f7dc3c",
 };
-export const corFase = (categoria: string) => COR_FASE[categoria] ?? "#888";
+export const corFase = (categoria: string) => COR_FASE[categoria] ?? "#9a958a";
 
 type VarianteBadge = "ok" | "info" | "sinal" | "atencao" | "critico" | "outline" | "secondary" | "riscado";
 const VARIANTE: Record<string, VarianteBadge> = {
