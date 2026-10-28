@@ -1,0 +1,124 @@
+/* Cores dos desenhos técnicos (classes dt-* geradas no catálogo de figuras e detalhes). */
+.desenho {
+  --tinta: var(--foreground);
+  --tinta-2: var(--muted-foreground);
+  --superficie: var(--card);
+  --superficie-2: var(--muted);
+  --bg: var(--background);
+  --linha: var(--border);
+  --acento: var(--info);
+  --ok-bg: var(--ok-suave);
+  --atencao-bg: var(--atencao-suave);
+  --critico-bg: var(--critico-suave);
+  --info-bg: var(--info-suave);
+  --fonte-corpo: var(--font-sans);
+  --fonte-dado: var(--font-mono);
+}
+.desenho svg { width: 100%; height: auto; display: block; }
+.desenho svg text { font-family: var(--font-sans); }
+.detalhe-svg { width: 100%; max-width: 640px; height: auto; background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio); }
+.detalhe-svg text { font-family: var(--fonte-corpo); }
+.dt-txt { fill: var(--tinta); font-size: 11px; }
+.dt-txt-forte { fill: var(--tinta); font-size: 11.5px; font-weight: 700; }
+.dt-txt-suave { fill: var(--tinta-2); font-size: 10.5px; font-style: italic; }
+.dt-txt-cota { fill: var(--acento); font-size: 10.5px; font-family: var(--fonte-dado); }
+.dt-txt-peq { fill: var(--tinta); font-size: 9.5px; }
+.dt-linha { stroke: var(--tinta); stroke-width: 1.4; fill: none; }
+.dt-linha-fill { stroke: var(--tinta); stroke-width: 1.4; }
+.dt-sem { stroke: none; }
+.dt-vazio { fill: var(--superficie); stroke: none; }
+.dt-fina { stroke: var(--tinta-2); stroke-width: 1; fill: none; }
+.dt-tracejada { stroke: var(--tinta-2); stroke-width: 1.2; stroke-dasharray: 6 4; fill: none; }
+.dt-madeira-linha { stroke: var(--atencao); stroke-width: 5; fill: none; }
+.dt-fio { stroke: var(--tinta-2); stroke-width: 0.8; stroke-dasharray: 2 3; }
+.dt-diagonal { stroke: var(--acento); stroke-width: 1; stroke-dasharray: 8 4; }
+.dt-rn { fill: var(--sinal); stroke: var(--tinta); }
+.dt-camada { stroke: var(--tinta); stroke-width: 1; stroke-dasharray: 10 3; }
+.dt-cota { stroke: var(--acento); stroke-width: 1; fill: none; }
+.dt-chamada { stroke: var(--tinta-2); stroke-width: 0.8; }
+.dt-ponto { fill: var(--tinta); }
+.dt-barra { fill: var(--tinta); }
+.dt-estribo { stroke: var(--tinta); stroke-width: 1.6; fill: none; }
+.dt-imperm { stroke: var(--info); stroke-width: 4; fill: none; stroke-linejoin: round; }
+.dt-tubo { fill: var(--superficie); stroke: var(--tinta-2); }
+.dt-tela { stroke: var(--tinta); stroke-width: 1; stroke-dasharray: 3 3; }
+.dt-trelica { stroke: var(--tinta); stroke-width: 1; fill: none; }
+.dt-escora { stroke: var(--tinta-2); stroke-width: 3; }
+.dt-guia { stroke: var(--atencao); stroke-width: 4; }
+.dt-vao { fill: var(--superficie); stroke: var(--tinta); stroke-width: 1.2; }
+.dt-tela-amarr { stroke: var(--critico); stroke-width: 2; }
+.dt-encunha { fill: var(--atencao-bg); stroke: var(--atencao); }
+.dt-ripa { fill: var(--atencao); }
+.dt-telha { stroke: var(--critico); stroke-width: 4; fill: none; stroke-linecap: round; }
+.dt-manta { stroke: var(--info); stroke-width: 1.5; stroke-dasharray: 5 2; fill: none; }
+.dt-calha { fill: var(--superficie-2); stroke: var(--tinta); }
+.dt-agua { stroke: var(--info); stroke-width: 2.5; fill: none; }
+.dt-ponto-agua { fill: var(--info); }
+.dt-esgoto { stroke: var(--tinta-2); stroke-width: 5; fill: none; stroke-linecap: round; }
+.dt-ralo { fill: var(--superficie-2); stroke: var(--tinta); }
+.dt-caixa { fill: var(--superficie-2); stroke: var(--tinta); }
+.dt-quadro { fill: var(--superficie-2); stroke: var(--tinta); stroke-width: 1.5; }
+.dt-disj { fill: var(--superficie); stroke: var(--tinta-2); }
+.dt-pendural { stroke: var(--tinta-2); stroke-width: 1.2; stroke-dasharray: 4 2; }
+.dt-perfil { stroke: var(--tinta); stroke-width: 3; }
+.dt-tabica { stroke: var(--acento); stroke-width: 2; fill: none; }
+.dt-junta { stroke: var(--atencao); stroke-width: 3; }
+.dt-janela { fill: var(--info-bg); stroke: var(--tinta); stroke-width: 1.5; }
+.dt-vidro { stroke: var(--info); stroke-width: 2; }
+.dt-sifao { stroke: var(--tinta-2); stroke-width: 4; fill: none; stroke-linejoin: round; }
+.dt-seta { stroke: var(--acento); stroke-width: 2; fill: none; marker-end: none; }
+.dt-caixa-passo { fill: var(--superficie-2); stroke: var(--tinta); }
+.dt-f-concreto { fill: var(--superficie-2); }
+.dt-f-pt { fill: var(--tinta-2); }
+.dt-f-solo { fill: var(--atencao-bg); }
+.dt-f-tr { stroke: var(--tinta-2); stroke-width: 0.8; fill: none; }
+.dt-f-tijolo { fill: var(--critico-bg); }
+.dt-f-madeira { fill: var(--atencao-bg); }
+.dt-f-eps { fill: var(--superficie); }
+.dt-f-eps-pt { fill: var(--linha); }
+.dt-f-arg { fill: var(--bg); }
+.dt-f-ceramica { fill: var(--info-bg); }
+.dt-papel { fill: var(--superficie); stroke: var(--tinta); stroke-width: 1.3; }
+.dt-cabecalho { fill: var(--critico-bg); stroke: var(--tinta); stroke-width: 1.3; }
+.dt-carimbo { fill: none; stroke: var(--ok); stroke-width: 2; }
+.dt-txt-carimbo { fill: var(--ok); font-size: 10px; font-weight: 800; letter-spacing: 0.06em; }
+.dt-txt-grande { fill: var(--tinta); font-size: 30px; font-weight: 800; }
+.dt-txt-alerta { fill: var(--critico); font-size: 10.5px; font-weight: 600; }
+.dt-curva { fill: none; stroke: var(--atencao); stroke-width: 1.2; }
+.dt-instrumento { fill: var(--superficie-2); stroke: var(--tinta); stroke-width: 1.3; }
+.dt-visor { fill: var(--ok-bg); stroke: var(--tinta-2); }
+.dt-bolha { fill: var(--ok-bg); stroke: var(--tinta-2); }
+.dt-laser { stroke: var(--critico); stroke-width: 1.2; stroke-dasharray: 8 3; }
+.dt-fio-prumo { stroke: var(--tinta-2); stroke-width: 1; }
+.dt-prumo { fill: var(--tinta); stroke: var(--tinta); }
+.dt-relogio { fill: var(--superficie); stroke: var(--tinta); stroke-width: 1.5; }
+.dt-agua-fill { fill: var(--info-bg); stroke: none; }
+.dt-tubo-grosso { stroke: var(--info); stroke-width: 6; stroke-linecap: round; fill: none; }
+.dt-tampao { fill: var(--tinta-2); stroke: var(--tinta); }
+.dt-base { fill: var(--tinta-2); stroke: none; }
+.dt-espacador { fill: var(--sinal); stroke: var(--tinta); }
+.dt-rasgo-ok { fill: var(--ok-bg); stroke: var(--ok); stroke-width: 1.5; }
+.dt-rasgo-nao { fill: var(--critico-bg); stroke: var(--critico); stroke-width: 1.5; }
+.dt-x { stroke: var(--critico); stroke-width: 2.5; }
+.dt-destaque { fill: none; stroke: var(--critico); stroke-width: 2.5; }
+.dt-caixa-agua { fill: var(--info-bg); stroke: var(--tinta); stroke-width: 1.5; }
+.dt-poste { stroke: var(--tinta-2); stroke-width: 6; }
+.dt-terra, .dt-fio-terra { stroke: var(--ok); stroke-width: 3; }
+.dt-haste { stroke: var(--atencao); stroke-width: 4; }
+.dt-fio-fase { stroke: var(--critico); stroke-width: 4; fill: none; }
+.dt-fio-neutro { stroke: var(--info); stroke-width: 4; fill: none; }
+.dt-fio-retorno { stroke: var(--tinta-2); stroke-width: 4; fill: none; }
+.dt-eletroduto { stroke: var(--atencao); stroke-width: 3; fill: none; stroke-dasharray: 2 2; }
+.dt-regua { fill: var(--sinal); stroke: var(--tinta); }
+.dt-cabo-martelo { stroke: var(--atencao); stroke-width: 4; }
+.dt-martelo { fill: var(--tinta-2); stroke: var(--tinta); }
+.dt-cordao { fill: var(--tinta-2); stroke: none; }
+.dt-selante { fill: none; stroke: var(--critico); stroke-width: 3; stroke-dasharray: 4 2; }
+.dt-ferragem { fill: var(--tinta-2); stroke: var(--tinta); }
+.dt-passo-atual { fill: var(--sinal); stroke: var(--tinta); stroke-width: 2; }
+.dt-lona { stroke: var(--info); stroke-width: 3; fill: none; }
+.dt-planta { fill: var(--ok-bg); stroke: var(--ok); stroke-width: 1.5; }
+.dt-placa-num { fill: var(--superficie); stroke: var(--tinta); stroke-width: 1.5; }
+.dt-check { fill: var(--ok-bg); stroke: var(--ok); }
+.dt-check-marca { fill: none; stroke: var(--ok); stroke-width: 1.8; }
+.dt-seta-fill { fill: var(--acento); stroke: var(--acento); }

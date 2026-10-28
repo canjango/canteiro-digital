@@ -19,19 +19,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
+          node-version: 22
+          cache: npm
       - name: Instalar dependências
-        run: pip install -r requirements.txt
+        run: npm ci
+      - name: Verificar tipos
+        run: npm run typecheck
       - name: Rodar testes
-        run: python -m pytest -q
-      - name: Montar o site
-        run: python build_artifact.py --site
+        run: npm test
+      - name: Montar o site (Next.js, exportação estática)
+        run: npm run build
+        env:
+          NEXT_BASE_PATH: /canteiro-digital
+          NEXT_TELEMETRY_DISABLED: "1"
+      - name: Desativar o processamento Jekyll
+        run: touch out/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: out
 
   deploy:
     needs: build

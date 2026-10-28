@@ -1,6 +1,7 @@
-__pycache__/
-.pytest_cache/
-dados/
-publicar/
-site/
-vendor/
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+artifact/
+src/artifact/tailwind.out.css
