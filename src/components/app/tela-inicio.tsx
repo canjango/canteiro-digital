@@ -177,10 +177,10 @@ export function TelaInicio() {
                   )}
                 >
                   <span className="flex w-full items-start justify-between gap-2">
-                    <span className="grid size-10 place-items-center rounded-md bg-trilho text-sinal transition-colors group-hover:bg-sinal group-hover:text-sinal-foreground">
+                    <span className="grid size-10 place-items-center rounded-md bg-sinal text-sinal-foreground transition-colors group-hover:bg-trilho group-hover:text-sinal">
                       <b.Icone className="size-5" />
                     </span>
-                    {b.novo && <span className="rounded-sm border border-foreground/15 bg-sinal px-1 text-[0.68rem] font-bold uppercase leading-4 text-sinal-foreground">novo</span>}
+                    {b.novo && <span className="rounded-sm border border-foreground/25 bg-card px-1 text-[0.68rem] font-bold uppercase leading-4 text-foreground">novo</span>}
                   </span>
                   <span className="flex w-full items-center gap-1 text-[0.95rem] font-semibold leading-tight break-words">
                     {b.titulo}
