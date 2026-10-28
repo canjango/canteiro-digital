@@ -303,9 +303,9 @@ function EtapaControle({ o, etapaBase }: { o: Obra; etapaBase: string }) {
         <div className="flex min-w-0 flex-col gap-1.5">
           <h2 className="text-lg font-bold leading-tight">{resto.join(". ") || etapaBase}</h2>
           <p className="flex flex-wrap items-center gap-x-2 text-[0.8rem] text-muted-foreground">
-            <span>{todos.length} itens</span><span className="text-border">|</span><span>Base {moeda(base)}</span>
-            <span className="text-border">|</span><span>Compra {moeda(compra)}</span>
-            {filtro && <><span className="text-border">|</span><Pill texto={filtro} /></>}
+            <span>{todos.length} itens</span><span className="text-muted-foreground" aria-hidden>|</span><span>Base {moeda(base)}</span>
+            <span className="text-muted-foreground" aria-hidden>|</span><span>Compra {moeda(compra)}</span>
+            {filtro && <><span className="text-muted-foreground" aria-hidden>|</span><Pill texto={filtro} /></>}
           </p>
         </div>
         <span className="text-right text-2xl font-bold leading-none tabular-nums">

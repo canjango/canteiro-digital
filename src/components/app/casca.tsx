@@ -13,6 +13,7 @@ import { PADROES } from "@/lib/core/catalogo";
 import { dataBr, moeda, num } from "@/lib/core/util";
 import { ABAS_SEM_OBRA, type Aba } from "@/lib/core/sistema";
 import { useSistema } from "./provedor";
+import { BotaoTema } from "./tema";
 import { TelaPainel } from "./tela-painel";
 import { TelaEtapas } from "./tela-etapas";
 import { TelaCompras } from "./tela-compras";
@@ -150,7 +151,7 @@ function Trilho({ aba }: { aba: Aba }) {
             <Icone className="size-5" />
             <span className="text-[0.7rem] font-medium">{rotulo}</span>
             {n > 0 && (
-              <span className="absolute right-[calc(50%-22px)] top-1 min-w-[1.4em] rounded-full bg-critico px-1 text-center font-mono text-[0.68rem] leading-[1.5] text-white" title="atrasadas">
+              <span className="absolute right-[calc(50%-22px)] top-1 min-w-[1.4em] rounded-full bg-critico px-1 text-center font-mono text-[0.68rem] leading-[1.5] font-semibold text-selo-texto" title="atrasadas">
                 {n}
               </span>
             )}
@@ -165,10 +166,11 @@ function Topo({ aba }: { aba: Aba }) {
   const { sis, acao } = useSistema();
   const o = sis.obra;
   return (
-    <header className="flex flex-col gap-1.5 border-b border-dashed pt-[calc(0.85rem+env(safe-area-inset-top))] pb-3 md:sticky md:top-0 md:z-30 md:bg-background">
+    <header className="relative flex flex-col gap-1.5 border-b border-dashed pt-[calc(0.85rem+env(safe-area-inset-top))] pb-3 md:sticky md:top-0 md:z-30 md:bg-background">
+      <BotaoTema className="absolute right-0 top-[calc(0.6rem+env(safe-area-inset-top))] md:hidden" />
       <div className="flex flex-wrap items-end justify-between gap-x-5 gap-y-2">
         <div className="min-w-0">
-          <p className="mb-1 flex flex-wrap items-center gap-1.5 text-[0.85rem] text-muted-foreground">
+          <p className="mb-1 flex flex-wrap items-center gap-1.5 pr-12 sm:pr-24 text-[0.85rem] text-muted-foreground md:pr-0">
             <button type="button" className="hover:text-foreground hover:underline" onClick={() => acao("ui.aba", { aba: "inicio" })}>
               Início
             </button>
@@ -186,16 +188,21 @@ function Topo({ aba }: { aba: Aba }) {
           </p>
           <h1 className="text-xl font-bold md:text-[1.3rem]">{TITULOS[aba]}</h1>
         </div>
-        <div className="w-full md:w-80">
-          {o ? (
-            <NativeSelect aria-label="Obra ativa" value={o.id} onChange={(e) => acao("obra.selecionar", { id: e.target.value })}>
-              {sis.ordenadas().map((x) => (
-                <option key={x.id} value={x.id}>{x.nome}</option>
-              ))}
-            </NativeSelect>
-          ) : (
-            <span className="flex h-9 items-center rounded-md border border-dashed px-3 text-sm text-muted-foreground">Nenhuma obra</span>
-          )}
+        <div className="w-full md:w-auto">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1 md:w-80 md:flex-none">
+              {o ? (
+                <NativeSelect aria-label="Obra ativa" value={o.id} onChange={(e) => acao("obra.selecionar", { id: e.target.value })}>
+                  {sis.ordenadas().map((x) => (
+                    <option key={x.id} value={x.id}>{x.nome}</option>
+                  ))}
+                </NativeSelect>
+              ) : (
+                <span className="flex h-9 items-center rounded-md border border-dashed px-3 text-sm text-muted-foreground">Nenhuma obra</span>
+              )}
+            </div>
+            <BotaoTema className="hidden md:inline-flex" />
+          </div>
           <EstadoGravacao />
         </div>
       </div>

@@ -46,3 +46,43 @@ export function aplicarAparencia(a: Aparencia, gravar = false): void {
     }
   }
 }
+
+// ---------------------------------------------------------------- estado compartilhado (botão do topo + Início → Aparência)
+const ouvintes = new Set<() => void>();
+let atual: Aparencia | null = null;
+let escuroSistema = false;
+let midia: MediaQueryList | null = null;
+// a versão do snapshot muda quando o tema do sistema muda (para o modo automático)
+let instantaneo: { a: Aparencia; escuro: boolean } = { a: PADRAO, escuro: false };
+
+function recalcular() {
+  const a = atual ?? PADRAO;
+  instantaneo = { a, escuro: a.tema === "escuro" || (a.tema === "auto" && escuroSistema) };
+  ouvintes.forEach((f) => f());
+}
+
+export function assinarAparencia(f: () => void): () => void {
+  if (!atual && typeof window !== "undefined") {
+    atual = lerAparencia();
+    midia = window.matchMedia?.("(prefers-color-scheme: dark)") ?? null;
+    escuroSistema = !!midia?.matches;
+    midia?.addEventListener?.("change", (e) => {
+      escuroSistema = e.matches;
+      recalcular();
+    });
+    recalcular();
+  }
+  ouvintes.add(f);
+  return () => ouvintes.delete(f);
+}
+
+export const aparenciaAtual = () => instantaneo;
+const SERVIDOR = { a: PADRAO, escuro: false };
+export const aparenciaServidor = () => SERVIDOR;
+
+export function definirAparencia(novo: Partial<Aparencia>): void {
+  const a = { ...(atual ?? lerAparencia()), ...novo };
+  atual = a;
+  aplicarAparencia(a, true);
+  recalcular();
+}

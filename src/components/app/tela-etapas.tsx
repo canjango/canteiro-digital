@@ -143,10 +143,10 @@ function DetalheEtapa({ o, e }: { o: Obra; e: Etapa }) {
           <h2 className="text-lg font-bold leading-tight"><span className="font-semibold text-muted-foreground">({e.codigo})</span> {e.nome}</h2>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8rem] text-muted-foreground">
             <span className="inline-flex items-center gap-1"><FlagIcon className="size-3.5" /> {e.categoria}</span>
-            <span className="text-border">|</span><Pill texto={st} />
-            <span className="text-border">|</span>
+            <span className="text-muted-foreground" aria-hidden>|</span><Pill texto={st} />
+            <span className="text-muted-foreground" aria-hidden>|</span>
             <span className="inline-flex items-center gap-1"><CalendarIcon className="size-3.5" /> {datas}</span>
-            <span className="text-border">|</span>
+            <span className="text-muted-foreground" aria-hidden>|</span>
             <span>{moeda(e.orcamento)} · peso {num(e.peso)}%{e.duracao_dias ? ` · ${e.duracao_dias} dias úteis` : ""}</span>
             {e.observacao && <span className="rounded-sm bg-info px-1.5 text-[0.7rem] font-semibold text-selo-texto">observação</span>}
           </p>

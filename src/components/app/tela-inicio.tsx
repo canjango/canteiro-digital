@@ -17,6 +17,7 @@ import * as pl from "@/lib/paleta";
 import { cn } from "@/lib/utils";
 import { Nota } from "./comum";
 import { useSistema } from "./provedor";
+import { useAparencia } from "./tema";
 
 type Icone = React.ComponentType<{ className?: string }>;
 interface Botao {
@@ -204,14 +205,8 @@ export function TelaInicio() {
 
 /** Escolha da paleta e do tema (por pessoa, guardado só neste navegador). */
 function Aparencia() {
-  const [a, setA] = React.useState<pl.Aparencia | null>(null);
-  React.useEffect(() => setA(pl.lerAparencia()), []);
-  if (!a) return null;
-  const mudar = (novo: Partial<pl.Aparencia>) => {
-    const x = { ...a, ...novo };
-    pl.aplicarAparencia(x, true);
-    setA(x);
-  };
+  const { a } = useAparencia();
+  const mudar = (novo: Partial<pl.Aparencia>) => pl.definirAparencia(novo);
   return (
     <section className="col-span-full flex flex-col gap-2.5" aria-label="Aparência">
       <h2 className="text-[0.78rem] font-semibold uppercase tracking-wider text-muted-foreground">Aparência</h2>

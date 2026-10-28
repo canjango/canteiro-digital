@@ -154,12 +154,12 @@ function LinhaCompra({ o, c, atrasada }: { o: Obra; c: Compra; atrasada: boolean
         </p>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8rem] text-muted-foreground">
           <span className="inline-flex items-center gap-1"><FlagIcon className="size-3.5" /> {c.categoria}</span>
-          <span className="text-border">|</span><Pill texto={c.status} />{atrasada && <Pill texto="Atrasada" />}
-          <span className="text-border">|</span>
+          <span className="text-muted-foreground" aria-hidden>|</span><Pill texto={c.status} />{atrasada && <Pill texto="Atrasada" />}
+          <span className="text-muted-foreground" aria-hidden>|</span>
           <span className="inline-flex items-center gap-1"><CalendarIcon className="size-3.5" />
             {c.data_necessidade ? `até ${dataBr(c.data_necessidade)}` : "sem data"}{c.data_entrega ? ` · entregue em ${dataBr(c.data_entrega)}` : ""}
           </span>
-          <span className="text-border">|</span><Pill texto={c.prioridade} />
+          <span className="text-muted-foreground" aria-hidden>|</span><Pill texto={c.prioridade} />
         </p>
         {podeCotar && (
           <form key={`${c.valor_unitario}|${c.fornecedor}`} className="flex max-w-xl flex-wrap gap-1.5" onSubmit={enviar("compra.preco", { id: c.id })}>
