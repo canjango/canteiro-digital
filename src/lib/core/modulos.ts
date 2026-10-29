@@ -10,6 +10,7 @@
  * - Financeiro: Recebimentos (contas a receber do cliente: parcelas do contrato e das medições).
  */
 import { lerGestao, type Gestao } from "./gestao";
+import { lerDadosProjetos, type DadosProjetos } from "./projetos";
 import { etapaDe, type Obra } from "./modelos";
 import { ValidacaoErro, arred, lerData, lerNumero, lerOpcao, lerTexto, limparTexto, novoId, somarMeses } from "./util";
 
@@ -41,7 +42,7 @@ export interface Insumo {
 }
 
 /** Cadastros compartilhados entre as obras: contatos, insumos, projetos e equipe. */
-export interface Cadastros extends Gestao {
+export interface Cadastros extends Gestao, DadosProjetos {
   contatos: Contato[];
   insumos: Insumo[];
 }
@@ -203,6 +204,7 @@ export function lerCadastros(v: unknown): Cadastros {
     contatos: l_(d.contatos).map(lerContato).filter((x): x is Contato => x !== null),
     insumos: l_(d.insumos).map(lerInsumo).filter((x): x is Insumo => x !== null),
     ...lerGestao(d),
+    ...lerDadosProjetos(d),
   };
 }
 

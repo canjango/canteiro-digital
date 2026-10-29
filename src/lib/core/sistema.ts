@@ -9,6 +9,7 @@ import { etapaConcluida } from "./analise";
 import { CATEGORIAS, MATERIAIS, etapaPadrao } from "./catalogo";
 import * as md from "./modulos";
 import * as gs from "./gestao";
+import * as pj from "./projetos";
 import { progressoEtapa } from "./analise";
 import {
   STATUS_CONTROLE, etapaDe, exportarObra, itemControleDe, lerObra, type Obra,
@@ -128,7 +129,7 @@ export class Sistema {
     confirmar: "",
   };
   /** Contatos e insumos, compartilhados entre as obras. */
-  cadastros: md.Cadastros = { contatos: [], insumos: [], projetos: [], equipe: [] };
+  cadastros: md.Cadastros = md.lerCadastros({});
 
   constructor(private readonly hojeFixo: string | null = null) {}
 
@@ -815,18 +816,112 @@ export class Sistema {
 
     // ---------------------------------------------------------- gestão de projetos
     "proj.salvar": (d) => {
-      const p = gs.salvarProjeto(this.cadastros, d, this.hoje);
+      const p = pj.salvarProjeto(this.cadastros, d, this.hoje);
       this.limparEdicao();
-      return this.mudouCadastro(s(d.id) ? `Projeto “${p.nome}” atualizado` : `Projeto “${p.nome}” cadastrado (${p.codigo})`);
+      if (!s(d.id)) this.ui.editando = p.id; // abre o projeto recém-criado
+      return this.mudouCadastro(s(d.id) ? `Projeto “${p.nome}” atualizado` : `Projeto ${p.codigo} criado com ${p.fases.length} fases (${p.modelo})`);
+    },
+    "proj.abrir": (d) => {
+      const id = s(d.id);
+      if (id) pj.projetoDe(this.cadastros, id);
+      this.limparEdicao();
+      this.ui.editando = id;
+      this.ui.sub = "projetos";
+    },
+    "proj.datas": (d) => {
+      const p = pj.definirDatas(this.cadastros, s(d.id), d);
+      return this.mudouCadastro(`${p.codigo}: prazos das fases distribuídos até ${p.entrega.split("-").reverse().join("/")}`);
+    },
+    "proj.fases": (d) => {
+      const p = pj.salvarFases(this.cadastros, s(d.id), d);
+      return this.mudouCadastro(`Fases de ${p.codigo} salvas`);
+    },
+    "proj.fase_add": (d) => {
+      const p = pj.adicionarFase(this.cadastros, s(d.id), s(d.codigo));
+      return this.mudouCadastro(`${pj.faseCatalogo(s(d.codigo))?.nome} incluída em ${p.codigo} — ajuste os pesos para fechar 100%`);
+    },
+    "proj.fase_rem": (d) => {
+      const p = pj.removerFase(this.cadastros, s(d.id), s(d.codigo));
+      return this.mudouCadastro(`Fase removida de ${p.codigo} — ajuste os pesos para fechar 100%`);
     },
     "proj.fase": (d) => {
-      const p = gs.alternarFase(this.cadastros, s(d.id), Math.trunc(lerNumero(d.indice, "Fase")), this.hoje);
-      const f = gs.faseAtual(p).fase;
-      return this.mudouCadastro(f ? `${p.nome}: fase atual “${f.fase}”` : `${p.nome}: todas as fases concluídas`);
+      const p = pj.alternarFase(this.cadastros, s(d.id), s(d.codigo), this.hoje);
+      const f = pj.faseAtual(p).fase;
+      return this.mudouCadastro(f ? `${p.codigo}: fase atual “${pj.faseCatalogo(f.codigo)?.nome}”` : `${p.codigo}: todas as fases concluídas`);
     },
-    "proj.prazo": (d) => {
-      const p = gs.prazoFase(this.cadastros, s(d.id), Math.trunc(lerNumero(d.indice, "Fase")), d.prazo);
-      return this.mudouCadastro(`Prazo atualizado em “${p.nome}”`);
+    "proj.aprovar": (d) => {
+      const p = pj.aprovarFase(this.cadastros, s(d.id), s(d.codigo), d, this.hoje);
+      return this.mudouCadastro(`${p.codigo}: aprovação do cliente registrada em ${s(d.codigo)}`);
+    },
+    "proj.revisao": (d) => {
+      const p = pj.registrarRevisao(this.cadastros, s(d.id), s(d.codigo), Number(d.delta ?? 1));
+      const usadas = pj.revisoesUsadas(p);
+      return this.mudouCadastro(`${p.codigo}: ${usadas} revisão(ões) de ${p.revisoes_incluidas} incluídas${usadas > p.revisoes_incluidas ? " — acima do contrato" : ""}`);
+    },
+    "proj.entregavel": (d) => {
+      const e = pj.salvarEntregavel(this.cadastros, s(d.id), d, this.hoje);
+      return this.mudouCadastro(`Entregável “${e.titulo}” ${s(d.eid) ? "atualizado" : "incluído"}`);
+    },
+    "proj.entregaveis_sugeridos": (d) => {
+      const n = pj.gerarEntregaveis(this.cadastros, s(d.id), s(d.codigo), this.hoje);
+      return this.mudouCadastro(n ? `${n} entregável(is) sugerido(s) incluído(s) em ${s(d.codigo)}` : "Os entregáveis sugeridos já estavam na lista");
+    },
+    "proj.entregavel_revisar": (d) => {
+      const e = pj.revisarEntregavel(this.cadastros, s(d.id), s(d.eid), this.hoje);
+      return this.mudouCadastro(`“${e.titulo}” agora em R${String(e.revisao).padStart(2, "0")}`);
+    },
+    "proj.entregavel_status": (d) => {
+      const e = pj.statusEntregavel(this.cadastros, s(d.id), s(d.eid), s(d.status), this.hoje);
+      return this.mudouCadastro(`“${e.titulo}”: ${e.status.toLowerCase()}`);
+    },
+    "proj.entregavel_rem": (d) => {
+      const eid = s(d.eid);
+      if (this.ui.confirmar !== eid) {
+        this.ui.confirmar = eid;
+        return {};
+      }
+      pj.removerEntregavel(this.cadastros, s(d.id), eid);
+      this.ui.confirmar = "";
+      return this.mudouCadastro("Entregável excluído");
+    },
+    "proj.horas": (d) => {
+      const h = pj.lancarHoras(this.cadastros, s(d.id), d, this.cadastros.equipe, this.hoje);
+      return this.mudouCadastro(`${num(h.horas)} h lançadas para ${h.pessoa} em ${h.fase}`);
+    },
+    "proj.horas_rem": (d) => {
+      pj.removerHoras(this.cadastros, s(d.id), s(d.hid));
+      return this.mudouCadastro("Lançamento de horas excluído");
+    },
+    "proj.parcelas": (d) => {
+      const n = pj.gerarParcelasPorFase(this.cadastros, s(d.id), d);
+      const semData = pj.projetoDe(this.cadastros, s(d.id)).parcelas.filter((x) => !x.vencimento).length;
+      return this.mudouCadastro(`${n} parcela(s) geradas pelas fases${semData ? ` — ${semData} sem vencimento: defina início e entrega do projeto` : ""}`);
+    },
+    "proj.parcela": (d) => {
+      const x = pj.salvarParcela(this.cadastros, s(d.id), d);
+      return this.mudouCadastro(`Parcela “${x.descricao}” incluída`);
+    },
+    "proj.parcela_status": (d) => {
+      const x = pj.mudarParcela(this.cadastros, s(d.id), s(d.pid), s(d.status), this.hoje, d.data);
+      return this.mudouCadastro(`“${x.descricao}”: ${x.status.toLowerCase()}`);
+    },
+    "proj.parcela_rem": (d) => {
+      const pid = s(d.pid);
+      if (this.ui.confirmar !== pid) {
+        this.ui.confirmar = pid;
+        return {};
+      }
+      pj.removerParcela(this.cadastros, s(d.id), pid);
+      this.ui.confirmar = "";
+      return this.mudouCadastro("Parcela excluída");
+    },
+    "proj.aditivo": (d) => {
+      const a = pj.salvarAditivo(this.cadastros, s(d.id), d, this.hoje);
+      return this.mudouCadastro(`Aditivo “${a.descricao}” registrado (${moeda(a.valor)})`);
+    },
+    "proj.aditivo_rem": (d) => {
+      pj.removerAditivo(this.cadastros, s(d.id), s(d.aid));
+      return this.mudouCadastro("Aditivo excluído");
     },
     "proj.remover": (d) => {
       const id = s(d.id);
@@ -834,27 +929,91 @@ export class Sistema {
         this.ui.confirmar = id;
         return {};
       }
-      const p = gs.removerProjeto(this.cadastros, id);
+      const p = pj.removerProjeto(this.cadastros, id);
       this.limparEdicao();
       return this.mudouCadastro(`Projeto “${p.nome}” excluído`);
     },
     "proj.obra": (d) => {
-      const p = gs.projetoDe(this.cadastros, s(d.id));
+      const p = pj.projetoDe(this.cadastros, s(d.id));
       if (p.obra && this.obras.has(p.obra)) {
         Object.assign(this.ui, { modulo: "obras", obra: p.obra, aba: "inicio" });
         return {};
       }
+      const padraoCub = pj.CUB_DO_PADRAO[p.padrao];
       const o = sv.criarObra({
         nome: p.nome, cliente: p.cliente, endereco: p.endereco, responsavel_tecnico: p.responsavel,
         inicio: s(d.inicio), fim_previsto: "", orcamento_total: "", area_construida: p.area || 100,
-        padrao: s(d.padrao) || "R1-N", valor_m2: "", bdi: d.bdi ?? 0, uf_cub: s(d.uf_cub) || "PB",
+        padrao: padraoCub, valor_m2: "", bdi: d.bdi ?? 0, uf_cub: p.uf || "PB",
       });
       this.obras.set(o.id, o);
-      gs.vincularObra(this.cadastros, p.id, o);
+      pj.vincularObra(this.cadastros, p.id, o);
       this.limparEdicao();
       Object.assign(this.ui, { modulo: "obras", obra: o.id, aba: "etapas", abertas: [o.etapas[0].codigo], fase: "", filtro_etapa: "", mat_abertas: [] });
-      this.ui.msg = `Obra “${o.nome}” criada a partir do projeto, com ${o.etapas.length} etapas`;
+      this.ui.msg = `Obra “${o.nome}” criada a partir do projeto (${padraoCub}, CUB-${o.uf_cub}), com ${o.etapas.length} etapas`;
       return { alteradas: [o.id], cadastros: true };
+    },
+    // propostas e licitações
+    "opo.salvar": (d) => {
+      const o = pj.salvarOportunidade(this.cadastros, d, this.hoje);
+      this.limparEdicao();
+      this.ui.editando = o.id;
+      return this.mudouCadastro(s(d.id) ? `“${o.titulo}” atualizada` : `${o.tipo === "Licitação" ? "Licitação" : "Proposta"} “${o.titulo}” cadastrada`);
+    },
+    "opo.etapa": (d) => {
+      const o = pj.moverOportunidade(this.cadastros, s(d.id), s(d.etapa), d);
+      return this.mudouCadastro(`“${o.titulo}”: ${o.etapa.toLowerCase()}`);
+    },
+    "opo.doc": (d) => {
+      pj.marcarDocumento(this.cadastros, s(d.id), Math.trunc(lerNumero(d.indice, "Documento")));
+      return this.mudouCadastro("");
+    },
+    "opo.doc_add": (d) => {
+      pj.adicionarDocLicitacao(this.cadastros, s(d.id), d.nome);
+      return this.mudouCadastro("Documento incluído no checklist");
+    },
+    "opo.projeto": (d) => {
+      const p = pj.converterEmProjeto(this.cadastros, s(d.id), this.hoje);
+      this.limparEdicao();
+      Object.assign(this.ui, { sub: "projetos", editando: p.id });
+      return this.mudouCadastro(`Projeto ${p.codigo} criado a partir da oportunidade ganha — revise fases, horas e parcelas`);
+    },
+    "opo.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      const o = pj.removerOportunidade(this.cadastros, id);
+      this.limparEdicao();
+      return this.mudouCadastro(`“${o.titulo}” excluída`);
+    },
+    // documentos de habilitação e regras
+    "doc.salvar": (d) => {
+      const x = pj.salvarDocumento(this.cadastros, d);
+      this.limparEdicao();
+      return this.mudouCadastro(`Documento “${x.nome}” salvo`);
+    },
+    "doc.padrao": () => {
+      const n = pj.documentosPadrao(this.cadastros);
+      return this.mudouCadastro(n ? `${n} documento(s) usuais incluídos — preencha emissão e validade` : "Os documentos usuais já estavam na lista");
+    },
+    "doc.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      const x = pj.removerDocumento(this.cadastros, id);
+      this.limparEdicao();
+      return this.mudouCadastro(`“${x.nome}” excluído`);
+    },
+    "regras.salvar": (d) => {
+      pj.salvarRegras(this.cadastros, d);
+      return this.mudouCadastro("Regras do escritório salvas (valem para os novos projetos)");
+    },
+    "regras.restaurar": () => {
+      this.cadastros.regras = JSON.parse(JSON.stringify(pj.REGRAS_PADRAO));
+      return this.mudouCadastro("Regras restauradas para o padrão");
     },
 
     // ---------------------------------------------------------- gestão de equipe

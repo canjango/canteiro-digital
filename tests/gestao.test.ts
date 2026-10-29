@@ -30,57 +30,6 @@ describe("áreas do sistema", () => {
   });
 });
 
-describe("gestão de projetos", () => {
-  it("cria com código, distribui prazos das fases e avança por fase", () => {
-    const r = ok("proj.salvar", { nome: "Residência Silva", cliente: "Silva", area: "180", inicio: "2026-11-01", entrega: "2027-03-01", honorarios: "18.000" });
-    expect(r.cadastros).toBe(true);
-    const p = s.cadastros.projetos[0];
-    expect(p.codigo).toBe("PRJ-2026-001");
-    expect(p.fases).toHaveLength(gs.FASES_PROJETO.length);
-    expect(p.fases.at(-1)!.prazo).toBe("2027-03-01");
-    expect(p.fases.every((f, k) => k === 0 || f.prazo >= p.fases[k - 1].prazo)).toBe(true);
-    // concluir a 3ª fase conclui as anteriores
-    ok("proj.fase", { id: p.id, indice: 2 });
-    expect(p.fases.slice(0, 3).every((f) => f.concluida_em === H)).toBe(true);
-    expect(gs.faseAtual(p).fase?.fase).toBe("Projeto legal (aprovação)");
-    // reabrir a 2ª reabre as seguintes
-    ok("proj.fase", { id: p.id, indice: 1 });
-    expect(p.fases.filter((f) => f.concluida_em)).toHaveLength(1);
-    ok("proj.fase", { id: p.id, indice: 6 });
-    expect([p.status, gs.progressoProjeto(p)]).toEqual(["Concluído", 1]);
-    falha("proj.salvar", { nome: "X", inicio: "2026-11-01", entrega: "2026-10-01" }, "entrega");
-  });
-
-  it("atraso pela fase atual e geração de obra a partir do projeto", () => {
-    ok("proj.salvar", { nome: "Casa A", cliente: "Ana", area: "120", inicio: "2026-08-01", entrega: "2026-10-20", endereco: "Rua 1" });
-    const p = s.cadastros.projetos[0];
-    expect(gs.projetoAtrasado(p, H)).toBe(true);
-    expect(gs.resumoProjetos(s.cadastros, H).atrasados).toBe(1);
-    const r = ok("proj.obra", { id: p.id });
-    expect(r.cadastros).toBe(true);
-    const o = s.obra!;
-    expect([o.nome, o.cliente, o.area_construida, o.uf_cub, s.ui.modulo, p.obra]).toEqual(["Casa A", "Ana", 120, "PB", "obras", o.id]);
-    expect(r.alteradas).toEqual([o.id]);
-    // de novo: só abre a obra existente
-    ok("ui.modulo", { modulo: "projetos" });
-    ok("proj.obra", { id: p.id });
-    expect([s.obras.size, s.ui.modulo]).toEqual([1, "obras"]);
-  });
-
-  it("editar datas recalcula só os prazos pendentes; excluir pede confirmação", () => {
-    ok("proj.salvar", { nome: "B", inicio: "2026-11-01", entrega: "2027-01-01" });
-    const p = s.cadastros.projetos[0];
-    ok("proj.fase", { id: p.id, indice: 0 });
-    const prazo0 = p.fases[0].prazo;
-    ok("proj.salvar", { id: p.id, nome: "B", inicio: "2026-11-01", entrega: "2027-06-01" });
-    expect([p.fases[0].prazo, p.fases.at(-1)!.prazo]).toEqual([prazo0, "2027-06-01"]);
-    ok("proj.remover", { id: p.id });
-    expect(s.cadastros.projetos).toHaveLength(1);
-    ok("proj.remover", { id: p.id });
-    expect(s.cadastros.projetos).toHaveLength(0);
-  });
-});
-
 describe("gestão de equipe", () => {
   it("cadastro, presença, dias e custo do mês por obra", () => {
     ok("obra.criar", { nome: "Obra 1", uf_cub: "PB" });

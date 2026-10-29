@@ -41,7 +41,7 @@ export function irModulo(acao: Acao, modulo: string, depois?: () => void, sub = 
 }
 
 export const AREAS: { id: string; nome: string; curto: string; Icone: Icone; desc: string }[] = [
-  { id: "projetos", nome: "Gestão de projetos", curto: "Projetos", Icone: PencilRulerIcon, desc: "Projetos por fase, prazos e honorários" },
+  { id: "projetos", nome: "Gestão de projetos", curto: "Projetos", Icone: PencilRulerIcon, desc: "Fases, honorários, horas, propostas e licitações" },
   { id: "obras", nome: "Gestão de obras", curto: "Obras", Icone: HardHatIcon, desc: "Etapas, compras, diário, medição e financeiro" },
   { id: "equipe", nome: "Gestão de equipe", curto: "Equipe", Icone: UsersIcon, desc: "Pessoas, alocação, presença e acessos" },
 ];
@@ -162,7 +162,8 @@ function MenuNovo() {
   ];
   const abrirNovoArea = (modulo: string, qual: string, sub = "") => irModulo(acao, modulo, () => acao("ui.novo", { qual }), sub);
   const cadastros: typeof itens = [
-    { rotulo: "Projeto", Icone: PencilRulerIcon, executar: () => abrirNovoArea("projetos", "projeto") },
+    { rotulo: "Projeto", Icone: PencilRulerIcon, executar: () => abrirNovoArea("projetos", "projeto", "projetos") },
+    { rotulo: "Proposta ou licitação", Icone: HandCoinsIcon, executar: () => abrirNovoArea("projetos", "opo-Proposta", "oportunidades") },
     { rotulo: "Pessoa na equipe", Icone: UsersIcon, executar: () => abrirNovoArea("equipe", "membro", "membros") },
     { rotulo: "Contato", Icone: UserPlusIcon, executar: () => abrirNovo("contatos", "contato") },
     { rotulo: "Insumo", Icone: BoxesIcon, executar: () => abrirNovo("insumos", "insumo") },
@@ -382,7 +383,7 @@ function PaletaComandos({ aberta, aoMudar }: { aberta: boolean; aoMudar: (v: boo
     for (const p of sis.cadastros.projetos) {
       r.push({
         grupo: "Projetos", titulo: `${p.codigo} · ${p.nome}`, sub: [p.cliente, p.status].filter(Boolean).join(" · "), Icone: FolderKanbanIcon,
-        executar: () => irModulo(acao, "projetos", () => acao("ui.editar", { id: p.id })),
+        executar: () => irModulo(acao, "projetos", () => acao("proj.abrir", { id: p.id })),
       });
     }
     for (const m of sis.cadastros.equipe) {

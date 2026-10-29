@@ -18,6 +18,24 @@ As contas ficam no navegador (`localStorage`), com a senha guardada só como has
 (210 mil iterações, sal por conta) e pausa progressiva após 5 tentativas erradas. Sem servidor, isso
 protege contra uso casual do aparelho, mas não substitui autenticação no servidor.
 
+## Gestão de projetos
+
+- **Tipos de obra e categorias:** residencial, interiores, comercial e corporativo, institucional e público, urbanismo e
+  paisagismo, reforma e regularização, industrial; padrão (alto, médio, econômico, público) e origem (particular, indicação,
+  licitação, concurso).
+- **Fases (CAU / NBR 16636):** LV, PN, EV, EP, AP (com projeto legal), PB (licitações), PE, CO, AO, com modelos por tipo de obra
+  e pesos editáveis (fecham 100%).
+- **Honorários:** % do custo da obra (área × CUB do padrão no estado), valor por m², valor fixo ou custo do serviço
+  (horas × custo/hora × K — Modalidade 02 do CAU), desconto e aditivos; valor por fase e parcelas por fase com sinal.
+- **Horas e resultado:** lançamentos por fase e pessoa (custo/hora da equipe), consumo de horas por fase, valor agregado,
+  margem atual e prevista no término.
+- **Entregáveis:** por fase e disciplina, com revisão R00, R01… e situação; aprovações do cliente e revisões além do contrato.
+- **Propostas e licitações:** funil particular e de licitações com prazos da Lei 14.133 (art. 55 publicação, art. 164 impugnação,
+  art. 165 recurso), garantias (arts. 58 e 98), checklist de habilitação e conversão em projeto.
+- **Habilitação:** documentos da empresa com validade, conferidos na data da sessão.
+- **Regras:** % e revisões por padrão, K, custo/hora, aprovação obrigatória (bloqueio), alertas de horas, prazos e margem mínima.
+  Percentuais são referências editáveis do escritório, não a tabela oficial do CAU.
+
 ## Módulos (painel em grade da tela Início)
 
 | Grupo | Módulos |

@@ -96,3 +96,53 @@ export function Sugestoes({ id, valores }: { id: string; valores: string[] }) {
     </datalist>
   );
 }
+
+/** Abas de uma área (controle segmentado; no celular usa o rótulo curto e rola na horizontal). */
+export function AbasArea({ abas, atual, aoEscolher, rotulo }: {
+  abas: { id: string; rotulo: string; curto?: string; contagem?: number; alerta?: boolean }[];
+  atual: string;
+  aoEscolher: (id: string) => void;
+  rotulo: string;
+}) {
+  return (
+    <nav aria-label={rotulo} className="flex gap-1 overflow-x-auto rounded-lg border bg-card p-1 [scrollbar-width:none]">
+      {abas.map((a) => (
+        <button
+          key={a.id}
+          type="button"
+          aria-current={atual === a.id ? "page" : undefined}
+          onClick={() => aoEscolher(a.id)}
+          className={cn(
+            "flex min-w-max flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            atual === a.id && "bg-trilho font-semibold text-white shadow-[inset_0_-3px_0_var(--sinal)] hover:bg-trilho hover:text-white",
+          )}
+        >
+          {a.curto ? <><span className="sm:hidden">{a.curto}</span><span className="hidden sm:inline">{a.rotulo}</span></> : a.rotulo}
+          {a.contagem !== undefined && a.contagem > 0 && (
+            <span className={cn("min-w-5 rounded-full px-1 text-center font-mono text-[0.7rem] leading-5", a.alerta ? "bg-critico text-selo-texto" : "bg-muted text-muted-foreground", atual === a.id && !a.alerta && "bg-white/15 text-white")}>
+              {a.contagem}
+            </span>
+          )}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/** Lista de barras horizontais (valor relativo ao maior). */
+export function Barras({ linhas, formatar }: { linhas: { rotulo: string; valor: number; extra?: string; aoClicar?: () => void }[]; formatar: (v: number) => string }) {
+  const maior = Math.max(1, ...linhas.map((l) => l.valor));
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {linhas.map((l) => (
+        <li key={l.rotulo}>
+          <button type="button" onClick={l.aoClicar} disabled={!l.aoClicar} className="grid w-full grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-1 py-1 text-left text-[0.84rem] enabled:hover:bg-muted">
+            <span className="truncate">{l.rotulo}</span>
+            <span className="h-2 rounded-full bg-muted"><span className="block h-full rounded-full bg-foreground" style={{ width: `${(l.valor / maior) * 100}%` }} /></span>
+            <span className="text-right font-mono text-[0.78rem]">{formatar(l.valor)}{l.extra ? <span className="text-muted-foreground"> · {l.extra}</span> : null}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}

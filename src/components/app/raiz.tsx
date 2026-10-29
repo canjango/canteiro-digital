@@ -5,6 +5,7 @@ import { ArrowRightIcon } from "lucide-react";
 
 import * as an from "@/lib/core/analise";
 import * as gs from "@/lib/core/gestao";
+import * as pj from "@/lib/core/projetos";
 import { dataBr, moeda } from "@/lib/core/util";
 import { cn } from "@/lib/utils";
 import { useAcesso } from "./acesso";
@@ -64,7 +65,7 @@ function PainelAcesso() {
   const { conta } = useAcesso();
   const hoje = sis.hoje;
   const mes = hoje.slice(0, 7);
-  const rp = gs.resumoProjetos(sis.cadastros, hoje);
+  const rp = pj.resumoGeral(sis.cadastros, hoje);
   const re = gs.resumoEquipe(sis.cadastros, mes, hoje);
   const obras = sis.ordenadas();
   const criticos = obras.reduce((s, o) => s + an.alertas(o, hoje).filter((a) => a.nivel === "critico").length, 0);
@@ -74,7 +75,7 @@ function PainelAcesso() {
     projetos: [
       { valor: String(rp.ativos), rotulo: "em andamento" },
       { valor: String(rp.atrasados), rotulo: "com prazo vencido", alerta: rp.atrasados > 0 },
-      { valor: moeda(rp.honorarios_ativos), rotulo: "honorários em carteira" },
+      { valor: moeda(rp.carteira), rotulo: "honorários em carteira" },
     ],
     obras: [
       { valor: String(obras.length), rotulo: obras.length === 1 ? "obra cadastrada" : "obras cadastradas" },
