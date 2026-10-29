@@ -1,12 +1,17 @@
 "use client";
 
-import { Casca } from "./casca";
+import { Portao, ProvedorAcesso } from "./acesso";
 import { ProvedorSistema } from "./provedor";
+import { Raiz } from "./raiz";
 
 export function Aplicativo() {
   return (
-    <ProvedorSistema>
-      <Casca />
-    </ProvedorSistema>
+    <ProvedorAcesso>
+      <Portao>
+        <ProvedorSistema>
+          <Raiz />
+        </ProvedorSistema>
+      </Portao>
+    </ProvedorAcesso>
   );
 }

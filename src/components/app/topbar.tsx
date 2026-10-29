@@ -3,13 +3,14 @@
 import * as React from "react";
 import {
   BellIcon, BotIcon, Building2Icon, CheckIcon, ChevronsUpDownIcon, ClipboardListIcon, CornerDownLeftIcon, HandCoinsIcon,
-  KanbanSquareIcon, LayoutGridIcon, ListChecksIcon, MoreVerticalIcon, NotebookPenIcon, PackageIcon, PaletteIcon, PlusIcon,
-  ReceiptIcon, RulerIcon, SearchIcon, ShoppingCartIcon, UserPlusIcon, BoxesIcon,
+  KanbanSquareIcon, LayoutGridIcon, ListChecksIcon, NotebookPenIcon, PackageIcon, PaletteIcon, PlusIcon,
+  ReceiptIcon, RulerIcon, SearchIcon, ShoppingCartIcon, UserPlusIcon, BoxesIcon, PencilRulerIcon, HardHatIcon, UsersIcon,
+  LogOutIcon, KeyRoundIcon, LayoutDashboardIcon, FolderKanbanIcon, UserRoundIcon,
 } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
-  DropdownMenu, DropdownMenuAtalho, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup,
   DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -21,21 +22,36 @@ import { pct } from "@/lib/core/util";
 import * as pl from "@/lib/paleta";
 import { cn } from "@/lib/utils";
 import { normal } from "./modulo-comum";
+import { useAcesso } from "./acesso";
 import { useSistema } from "./provedor";
 import { BotaoTema, useAparencia } from "./tema";
 
 type Icone = React.ComponentType<{ className?: string }>;
 type Acao = (nome: string, dados?: Record<string, unknown>) => { ok: boolean };
 
-/** Vai para uma tela e, opcionalmente, executa um passo seguinte (abrir formulário, registro…). */
+/** Vai para uma tela de obras e, opcionalmente, executa um passo seguinte (abrir formulário, registro…). */
 function irPara(acao: Acao, aba: string, depois?: () => void, vista = "") {
+  acao("ui.modulo", { modulo: "obras" });
   if (acao("ui.aba", { aba, vista }).ok) depois?.();
 }
+
+/** Vai para outra área (projetos, equipe, painel de acesso). */
+export function irModulo(acao: Acao, modulo: string, depois?: () => void, sub = "") {
+  if (acao("ui.modulo", { modulo, sub }).ok) depois?.();
+}
+
+export const AREAS: { id: string; nome: string; curto: string; Icone: Icone; desc: string }[] = [
+  { id: "projetos", nome: "Gestão de projetos", curto: "Projetos", Icone: PencilRulerIcon, desc: "Projetos por fase, prazos e honorários" },
+  { id: "obras", nome: "Gestão de obras", curto: "Obras", Icone: HardHatIcon, desc: "Etapas, compras, diário, medição e financeiro" },
+  { id: "equipe", nome: "Gestão de equipe", curto: "Equipe", Icone: UsersIcon, desc: "Pessoas, alocação, presença e acessos" },
+];
 
 const BOTAO_ICONE =
   "inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-input bg-card text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&_svg]:size-4";
 
 export function Topbar() {
+  const { sis } = useSistema();
+  const emObras = sis.ui.modulo === "obras";
   const [busca, setBusca] = React.useState(false);
   // Ctrl+K / ⌘K abre a busca de qualquer tela; "/" também, fora de campos de texto
   React.useEffect(() => {
@@ -56,15 +72,15 @@ export function Topbar() {
       className="sticky top-0 z-40 -mx-4 border-b bg-card/95 px-3 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-card/85 md:-mx-5 md:px-5"
     >
       <div className="flex h-14 items-center gap-2">
-        <span className="marca-listras hidden size-7 shrink-0 rounded sm:block md:hidden" aria-hidden title="Canteiro Digital" />
-        <SeletorObra />
+        <SeletorArea />
+        {emObras ? <SeletorObra /> : <TituloArea />}
         <button
           type="button"
           onClick={() => setBusca(true)}
           className="ml-auto hidden h-9 min-w-0 max-w-md flex-1 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground transition-colors hover:border-foreground lg:flex"
         >
           <SearchIcon className="size-4 shrink-0" />
-          <span className="truncate">Buscar telas, etapas, ordens, contatos…</span>
+          <span className="truncate">Buscar projetos, obras, etapas, pessoas…</span>
           <kbd className="ml-auto rounded border bg-card px-1.5 font-mono text-[0.72rem]">Ctrl K</kbd>
         </button>
         <div className="ml-auto flex shrink-0 items-center gap-1.5 lg:ml-0">
@@ -72,10 +88,10 @@ export function Topbar() {
             <SearchIcon />
           </button>
           <MenuNovo />
-          <Avisos />
+          {emObras && <Avisos />}
           <StatusGravacao />
           <BotaoTema />
-          <MenuMais />
+          <MenuUsuario />
         </div>
       </div>
       <PaletaComandos aberta={busca} aoMudar={setBusca} />
@@ -134,7 +150,7 @@ function SeletorObra() {
 function MenuNovo() {
   const { sis, acao } = useSistema();
   const temObra = !!sis.obra;
-  const abrirNovo = (aba: string, qual: string) => irPara(acao, aba, () => sis.ui.novo !== qual && acao("ui.novo", { qual }));
+  const abrirNovo = (aba: string, qual: string) => irPara(acao, aba, () => acao("ui.novo", { qual }));
   const itens: { rotulo: string; Icone: Icone; executar: () => void; obra?: boolean }[] = [
     { rotulo: "Solicitação de compra", Icone: ClipboardListIcon, obra: true, executar: () => abrirNovo("solicitacoes", "solicitacao") },
     { rotulo: "Ordem de compra", Icone: ReceiptIcon, obra: true, executar: () => abrirNovo("ordens", "ordem") },
@@ -144,7 +160,10 @@ function MenuNovo() {
     { rotulo: "Recebimento", Icone: HandCoinsIcon, obra: true, executar: () => abrirNovo("recebimentos", "recebimento") },
     { rotulo: "Tarefa", Icone: KanbanSquareIcon, obra: true, executar: () => irPara(acao, "tarefas", () => !sis.ui.form_tarefa && acao("ui.form", { qual: "tarefa" })) },
   ];
+  const abrirNovoArea = (modulo: string, qual: string, sub = "") => irModulo(acao, modulo, () => acao("ui.novo", { qual }), sub);
   const cadastros: typeof itens = [
+    { rotulo: "Projeto", Icone: PencilRulerIcon, executar: () => abrirNovoArea("projetos", "projeto") },
+    { rotulo: "Pessoa na equipe", Icone: UsersIcon, executar: () => abrirNovoArea("equipe", "membro", "membros") },
     { rotulo: "Contato", Icone: UserPlusIcon, executar: () => abrirNovo("contatos", "contato") },
     { rotulo: "Insumo", Icone: BoxesIcon, executar: () => abrirNovo("insumos", "insumo") },
     { rotulo: "Obra", Icone: Building2Icon, executar: () => irPara(acao, "obras") },
@@ -239,16 +258,73 @@ function StatusGravacao() {
   );
 }
 
-// ---------------------------------------------------------------- mais opções
-function MenuMais() {
-  const { acao } = useSistema();
-  const { a } = useAparencia();
+// ---------------------------------------------------------------- áreas do sistema
+function SeletorArea() {
+  const { sis, acao } = useSistema();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={cn(BOTAO_ICONE, "hidden sm:inline-flex")} aria-label="Mais opções" title="Mais opções">
-        <MoreVerticalIcon />
+      <DropdownMenuTrigger className={cn(BOTAO_ICONE, "border-transparent bg-transparent")} aria-label="Trocar de área" title="Áreas do sistema">
+        <LayoutDashboardIcon />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="start" className="w-72">
+        <DropdownMenuLabel>Áreas</DropdownMenuLabel>
+        <DropdownMenuItem onSelect={() => irModulo(acao, "hub")}>
+          <span className="marca-listras size-4 rounded-sm" aria-hidden />Painel de acesso
+          {sis.ui.modulo === "hub" && <CheckIcon className="ml-auto text-ok" />}
+        </DropdownMenuItem>
+        {AREAS.map((a) => (
+          <DropdownMenuItem key={a.id} onSelect={() => irModulo(acao, a.id)} className="items-start">
+            <a.Icone />
+            <span className="flex flex-col">
+              <span className="font-medium">{a.nome}</span>
+              <span className="text-[0.76rem] text-muted-foreground">{a.desc}</span>
+            </span>
+            {sis.ui.modulo === a.id && <CheckIcon className="ml-auto text-ok" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function TituloArea() {
+  const { sis } = useSistema();
+  const a = AREAS.find((x) => x.id === sis.ui.modulo);
+  if (!a) return <span className="truncate text-sm font-semibold">Canteiro Digital</span>;
+  return (
+    <span className="flex min-w-0 items-center gap-2 px-1">
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-sinal text-sinal-foreground"><a.Icone className="size-4" /></span>
+      <span className="truncate text-sm font-semibold">{a.nome}</span>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------- usuário, aparência e sair
+const iniciais = (nome: string) => nome.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join("");
+
+function MenuUsuario() {
+  const { acao } = useSistema();
+  const { conta, sair } = useAcesso();
+  const { a } = useAparencia();
+  if (!conta) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="grid size-9 shrink-0 place-items-center rounded-full bg-trilho text-[0.8rem] font-bold text-sinal transition-shadow hover:shadow-[0_0_0_2px_var(--sinal)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        aria-label={`Conta de ${conta.nome}`}
+        title={conta.nome}
+      >
+        {iniciais(conta.nome) || <UserRoundIcon className="size-4" />}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <div className="flex flex-col px-2.5 py-2">
+          <span className="truncate text-sm font-semibold">{conta.nome}</span>
+          <span className="text-[0.76rem] text-muted-foreground">@{conta.usuario} · {conta.papel === "admin" ? "administrador" : "membro"}</span>
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => irModulo(acao, "equipe", undefined, "acessos")}><KeyRoundIcon />Senha e acessos</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => irPara(acao, "obras")}><BotIcon />Revisão com Claude (configurar)</DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuLabel><PaletteIcon className="mr-1 inline size-3.5" />Paleta de cores</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={a.paleta} onValueChange={(v) => pl.definirAparencia({ paleta: v as pl.Paleta })}>
           {pl.PALETAS.map((p) => <DropdownMenuRadioItem key={p.id} value={p.id}>{p.nome}</DropdownMenuRadioItem>)}
@@ -258,8 +334,7 @@ function MenuMais() {
           {pl.TEMAS.map((t) => <DropdownMenuRadioItem key={t.id} value={t.id}>{t.nome}</DropdownMenuRadioItem>)}
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => irPara(acao, "obras")}><BotIcon />Revisão com Claude (configurar)</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => irPara(acao, "inicio")}><LayoutGridIcon />Painel de módulos<DropdownMenuAtalho>Início</DropdownMenuAtalho></DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => { acao("ui.modulo", { modulo: "hub" }); sair(); }} className="text-critico"><LogOutIcon />Sair</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -302,6 +377,17 @@ function PaletaComandos({ aberta, aoMudar }: { aberta: boolean; aoMudar: (v: boo
   const resultados = React.useMemo<Resultado[]>(() => {
     if (!aberta) return [];
     const r: Resultado[] = [];
+    r.push({ grupo: "Áreas", titulo: "Painel de acesso", Icone: LayoutDashboardIcon, executar: () => irModulo(acao, "hub") });
+    for (const a of AREAS) r.push({ grupo: "Áreas", titulo: a.nome, sub: a.desc, Icone: a.Icone, executar: () => irModulo(acao, a.id) });
+    for (const p of sis.cadastros.projetos) {
+      r.push({
+        grupo: "Projetos", titulo: `${p.codigo} · ${p.nome}`, sub: [p.cliente, p.status].filter(Boolean).join(" · "), Icone: FolderKanbanIcon,
+        executar: () => irModulo(acao, "projetos", () => acao("ui.editar", { id: p.id })),
+      });
+    }
+    for (const m of sis.cadastros.equipe) {
+      r.push({ grupo: "Equipe", titulo: m.nome, sub: [m.funcao, m.telefone].filter(Boolean).join(" · "), Icone: UsersIcon, executar: () => irModulo(acao, "equipe", () => acao("ui.editar", { id: m.id }), "membros") });
+    }
     for (const t of TELAS) {
       if (!o && !ABAS_SEM_OBRA.includes(t.aba)) continue;
       r.push({ grupo: "Telas", titulo: t.titulo, Icone: t.Icone, sub: t.termos, executar: () => irPara(acao, t.aba, undefined, t.vista) });
@@ -348,7 +434,7 @@ function PaletaComandos({ aberta, aoMudar }: { aberta: boolean; aoMudar: (v: boo
       r.push({ grupo: "Insumos", titulo: i.descricao, sub: [i.unidade, i.grupo].filter(Boolean).join(" · "), Icone: BoxesIcon, executar: () => irPara(acao, "insumos") });
     }
     const termos = normal(texto.trim()).split(/\s+/).filter(Boolean);
-    if (!termos.length) return r.filter((x) => x.grupo === "Telas" || x.grupo === "Obras");
+    if (!termos.length) return r.filter((x) => x.grupo === "Áreas" || x.grupo === "Telas" || x.grupo === "Obras");
     const filtrados = r.filter((x) => {
       const alvo = normal(`${x.titulo} ${x.sub ?? ""} ${x.grupo}`);
       return termos.every((t) => alvo.includes(t));
@@ -391,7 +477,7 @@ function PaletaComandos({ aberta, aoMudar }: { aberta: boolean; aoMudar: (v: boo
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={tecla}
-            placeholder="Buscar telas, etapas, OC-001, fornecedor, insumo…"
+            placeholder="Buscar projetos, etapas, OC-001, pessoas, insumos…"
             aria-label="Buscar"
             role="combobox"
             aria-expanded

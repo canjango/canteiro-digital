@@ -8,6 +8,7 @@ import * as sv from "./servicos";
 import { etapaConcluida } from "./analise";
 import { CATEGORIAS, MATERIAIS, etapaPadrao } from "./catalogo";
 import * as md from "./modulos";
+import * as gs from "./gestao";
 import { progressoEtapa } from "./analise";
 import {
   STATUS_CONTROLE, etapaDe, exportarObra, itemControleDe, lerObra, type Obra,
@@ -25,7 +26,14 @@ export const FILTROS_COMPRA = ["abertas", "atrasadas", "todas", "Entregue", "Can
 export type VistaCompras = "controle" | "pedidos" | "materiais";
 export type ModoIa = "claude" | "chave" | "nenhum";
 
+export const MODULOS = ["hub", "projetos", "obras", "equipe"] as const;
+export type Modulo = (typeof MODULOS)[number];
+
 export interface EstadoUi {
+  /** Área do sistema: painel de acesso (hub), projetos, obras ou equipe. */
+  modulo: Modulo;
+  /** Sub-tela dentro de projetos/equipe (ex.: "membros", "presenca", "acessos"). */
+  sub: string;
   obra: string;
   aba: Aba;
   abertas: string[]; // etapa selecionada na tela de etapas (a última)
@@ -89,6 +97,8 @@ export class Sistema {
   /** Pedido de revisão a enviar para a Claude (lido e limpo pela camada web). */
   pedidoIa: { id: string; texto: string } | null = null;
   ui: EstadoUi = {
+    modulo: "hub",
+    sub: "",
     obra: "",
     aba: "inicio",
     abertas: [],
@@ -118,7 +128,7 @@ export class Sistema {
     confirmar: "",
   };
   /** Contatos e insumos, compartilhados entre as obras. */
-  cadastros: md.Cadastros = { contatos: [], insumos: [] };
+  cadastros: md.Cadastros = { contatos: [], insumos: [], projetos: [], equipe: [] };
 
   constructor(private readonly hojeFixo: string | null = null) {}
 
@@ -220,6 +230,15 @@ export class Sistema {
 
   private readonly acoes: Record<string, Acao> = {
     // ---------------------------------------------------------- navegação
+    "ui.modulo": (d) => {
+      const m = s(d.modulo);
+      if (!(MODULOS as readonly string[]).includes(m)) throw new ValidacaoErro("Área inválida");
+      this.ui.modulo = m as Modulo;
+      this.ui.sub = s(d.sub);
+      this.ui.figura = null;
+      this.limparEdicao();
+      if (m === "obras" && !this.obra && !ABAS_SEM_OBRA.includes(this.ui.aba)) this.ui.aba = "inicio";
+    },
     "ui.aba": (d) => {
       const aba = s(d.aba) || "painel";
       if (!(ABAS as readonly string[]).includes(aba)) throw new ValidacaoErro("Aba inválida");
@@ -231,6 +250,10 @@ export class Sistema {
         if (!["controle", "pedidos", "materiais"].includes(s(d.vista))) throw new ValidacaoErro("Vista inválida");
         this.ui.compras_vista = s(d.vista) as VistaCompras;
       }
+      this.limparEdicao();
+    },
+    "ui.sub": (d) => {
+      this.ui.sub = s(d.sub);
       this.limparEdicao();
     },
     "ui.editar": (d) => {
@@ -788,6 +811,75 @@ export class Sistema {
       md.removerMedicao(this.ativa(), id);
       this.limparEdicao();
       return this.mudou("Medição excluída");
+    },
+
+    // ---------------------------------------------------------- gestão de projetos
+    "proj.salvar": (d) => {
+      const p = gs.salvarProjeto(this.cadastros, d, this.hoje);
+      this.limparEdicao();
+      return this.mudouCadastro(s(d.id) ? `Projeto “${p.nome}” atualizado` : `Projeto “${p.nome}” cadastrado (${p.codigo})`);
+    },
+    "proj.fase": (d) => {
+      const p = gs.alternarFase(this.cadastros, s(d.id), Math.trunc(lerNumero(d.indice, "Fase")), this.hoje);
+      const f = gs.faseAtual(p).fase;
+      return this.mudouCadastro(f ? `${p.nome}: fase atual “${f.fase}”` : `${p.nome}: todas as fases concluídas`);
+    },
+    "proj.prazo": (d) => {
+      const p = gs.prazoFase(this.cadastros, s(d.id), Math.trunc(lerNumero(d.indice, "Fase")), d.prazo);
+      return this.mudouCadastro(`Prazo atualizado em “${p.nome}”`);
+    },
+    "proj.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      const p = gs.removerProjeto(this.cadastros, id);
+      this.limparEdicao();
+      return this.mudouCadastro(`Projeto “${p.nome}” excluído`);
+    },
+    "proj.obra": (d) => {
+      const p = gs.projetoDe(this.cadastros, s(d.id));
+      if (p.obra && this.obras.has(p.obra)) {
+        Object.assign(this.ui, { modulo: "obras", obra: p.obra, aba: "inicio" });
+        return {};
+      }
+      const o = sv.criarObra({
+        nome: p.nome, cliente: p.cliente, endereco: p.endereco, responsavel_tecnico: p.responsavel,
+        inicio: s(d.inicio), fim_previsto: "", orcamento_total: "", area_construida: p.area || 100,
+        padrao: s(d.padrao) || "R1-N", valor_m2: "", bdi: d.bdi ?? 0, uf_cub: s(d.uf_cub) || "PB",
+      });
+      this.obras.set(o.id, o);
+      gs.vincularObra(this.cadastros, p.id, o);
+      this.limparEdicao();
+      Object.assign(this.ui, { modulo: "obras", obra: o.id, aba: "etapas", abertas: [o.etapas[0].codigo], fase: "", filtro_etapa: "", mat_abertas: [] });
+      this.ui.msg = `Obra “${o.nome}” criada a partir do projeto, com ${o.etapas.length} etapas`;
+      return { alteradas: [o.id], cadastros: true };
+    },
+
+    // ---------------------------------------------------------- gestão de equipe
+    "eq.salvar": (d) => {
+      const m = gs.salvarMembro(this.cadastros, d, this.obras);
+      this.limparEdicao();
+      return this.mudouCadastro(s(d.id) ? `${m.nome} atualizado(a)` : `${m.nome} adicionado(a) à equipe`);
+    },
+    "eq.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      const m = gs.removerMembro(this.cadastros, id);
+      this.limparEdicao();
+      return this.mudouCadastro(`${m.nome} removido(a) da equipe`);
+    },
+    "eq.presenca": (d) => {
+      const m = gs.marcarPresenca(this.cadastros, s(d.id), d.data, s(d.presente) !== "0");
+      return this.mudouCadastro(`${m.nome}: ${s(d.presente) !== "0" ? "presente" : "falta"}`);
+    },
+    "eq.todos": (d) => {
+      const n = gs.marcarTodos(this.cadastros, d.data, s(d.obra), s(d.presente) !== "0");
+      return this.mudouCadastro(n ? `${n} pessoa(s) marcadas como ${s(d.presente) !== "0" ? "presentes" : "ausentes"}` : "Ninguém ativo para marcar");
     },
 
     // ---------------------------------------------------------- tarefas

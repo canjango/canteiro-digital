@@ -59,10 +59,9 @@ const TITULOS: Record<Aba, string> = {
 };
 
 export function Casca() {
-  const { sis, carregado } = useSistema();
+  const { sis } = useSistema();
   const o = sis.obra;
   const aba: Aba = o || ABAS_SEM_OBRA.includes(sis.ui.aba) ? sis.ui.aba : "inicio";
-  if (!carregado) return <Carregando />;
   return (
     <div className="min-h-dvh">
       <Trilho aba={aba} />
@@ -94,7 +93,7 @@ export function Casca() {
   );
 }
 
-function Carregando() {
+export function Carregando() {
   return (
     <div className="grid min-h-dvh place-items-center p-4 text-center text-muted-foreground">
       <div className="flex flex-col items-center gap-3">
@@ -126,9 +125,15 @@ function Trilho({ aba }: { aba: Aba }) {
         "md:inset-y-0 md:left-0 md:right-auto md:w-[76px] md:flex-col md:justify-start md:overflow-y-auto md:border-t-0 md:px-1.5 md:pt-[calc(0.6rem+env(safe-area-inset-top))] md:pb-2 md:[scrollbar-width:none]",
       )}
     >
-      <div className="hidden h-12 place-items-center md:mb-2 md:grid" title="Canteiro Digital">
+      <button
+        type="button"
+        onClick={() => acao("ui.modulo", { modulo: "hub" })}
+        className="hidden h-12 place-items-center rounded-md hover:bg-white/10 md:mb-2 md:grid"
+        title="Painel de acesso (projetos, obras e equipe)"
+        aria-label="Painel de acesso"
+      >
         <span className="marca-listras size-7 rounded" aria-hidden />
-      </div>
+      </button>
       {ABAS_TRILHO.map(({ chave, rotulo, Icone, celular }) => {
         const ativa = chave === aba;
         const n = contador(chave);
@@ -199,7 +204,7 @@ function Topo({ aba }: { aba: Aba }) {
 }
 
 /** Mensagem da última ação (sucesso ou erro), como aviso flutuante. */
-function Mensagens() {
+export function Mensagens() {
   const { sis, avisoId } = useSistema();
   const { msg, erro } = sis.ui;
   const [visivel, setVisivel] = React.useState(true);

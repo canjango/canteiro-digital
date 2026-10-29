@@ -7,6 +7,17 @@ A cada push na branch `main`, o GitHub Actions verifica os tipos, roda os testes
 (`next build` com `output: "export"`) e publica no GitHub Pages. No site, os dados ficam salvos no
 navegador de cada pessoa (localStorage, chave `canteiro-digital:v1`, o mesmo formato da versão anterior).
 
+## Acesso e áreas
+
+Ao abrir, o sistema pede **usuário e senha** (no primeiro acesso cria-se o administrador). Depois, o
+**painel de acesso** divide o sistema em três áreas: **Gestão de projetos** (projetos por fase, prazos e
+honorários; gera a obra a partir do projeto), **Gestão de obras** (tudo abaixo) e **Gestão de equipe**
+(pessoas, alocação por obra, presença, custo do mês e acessos ao sistema).
+
+As contas ficam no navegador (`localStorage`), com a senha guardada só como hash PBKDF2-SHA-256
+(210 mil iterações, sal por conta) e pausa progressiva após 5 tentativas erradas. Sem servidor, isso
+protege contra uso casual do aparelho, mas não substitui autenticação no servidor.
+
 ## Módulos (painel em grade da tela Início)
 
 | Grupo | Módulos |

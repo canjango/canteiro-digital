@@ -9,6 +9,7 @@
  *   Medição de obra (avanço por etapa, valor do período com BDI, aprovação).
  * - Financeiro: Recebimentos (contas a receber do cliente: parcelas do contrato e das medições).
  */
+import { lerGestao, type Gestao } from "./gestao";
 import { etapaDe, type Obra } from "./modelos";
 import { ValidacaoErro, arred, lerData, lerNumero, lerOpcao, lerTexto, limparTexto, novoId, somarMeses } from "./util";
 
@@ -39,7 +40,8 @@ export interface Insumo {
   atualizado_em: string;
 }
 
-export interface Cadastros {
+/** Cadastros compartilhados entre as obras: contatos, insumos, projetos e equipe. */
+export interface Cadastros extends Gestao {
   contatos: Contato[];
   insumos: Insumo[];
 }
@@ -200,6 +202,7 @@ export function lerCadastros(v: unknown): Cadastros {
   return {
     contatos: l_(d.contatos).map(lerContato).filter((x): x is Contato => x !== null),
     insumos: l_(d.insumos).map(lerInsumo).filter((x): x is Insumo => x !== null),
+    ...lerGestao(d),
   };
 }
 
