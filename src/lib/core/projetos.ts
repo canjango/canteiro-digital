@@ -9,6 +9,7 @@
 import { valorReferencia } from "./catalogo";
 import type { Obra } from "./modelos";
 import * as pz from "./prazos";
+import * as px from "./projetos-extra";
 import { ValidacaoErro, arred, diasEntre, lerData, lerNumero, lerOpcao, lerTexto, limparTexto, novoId, somarDias } from "./util";
 
 type B = Record<string, unknown>;
@@ -158,7 +159,7 @@ export interface Honorarios {
   desconto: number; // %
 }
 
-export interface Projeto {
+export interface Projeto extends px.ExtrasProjeto {
   id: string;
   codigo: string;
   nome: string;
@@ -296,7 +297,7 @@ export const REGRAS_PADRAO: RegrasProjetos = {
   margem_minima: 20,
 };
 
-export interface DadosProjetos {
+export interface DadosProjetos extends px.ExtrasDados {
   projetos: Projeto[];
   oportunidades: Oportunidade[];
   documentos: DocumentoEmpresa[];
@@ -411,6 +412,7 @@ export function lerProjeto(v: unknown, regras: RegrasProjetos = REGRAS_PADRAO): 
       return { id: t_(e.id) || novoId("adt"), data: d_(e.data), descricao: t_(e.descricao), valor: n_(e.valor), horas: n_(e.horas) };
     }),
     observacao: t_(d.observacao), obra: t_(d.obra), criado_em: d_(d.criado_em),
+    ...px.lerExtrasProjeto(d),
   };
 }
 
@@ -446,6 +448,7 @@ export function lerDadosProjetos(d: B): DadosProjetos {
     projetos: l_(d.projetos).map((x) => lerProjeto(x, regras)).filter((x): x is Projeto => x !== null),
     oportunidades: l_(d.oportunidades).map(lerOportunidade).filter((x): x is Oportunidade => x !== null),
     documentos: l_(d.documentos).map(lerDocumento).filter((x): x is DocumentoEmpresa => x !== null),
+    ...px.lerExtrasDados(d),
   };
 }
 
@@ -500,7 +503,9 @@ export const custoHoras = (p: Projeto) => arred(p.horas.reduce((s, h) => s + h.h
 export interface Resultado {
   contratado: number; // honorários + aditivos
   agregado: number; // valor ganho pelo avanço (earned)
-  custo: number; // horas lançadas × custo/hora
+  custo: number; // horas lançadas × custo/hora + despesas do projeto
+  custo_horas: number;
+  despesas: number;
   margem: number | null; // (agregado − custo) / agregado
   custo_previsto: number | null; // custo projetado no término (EAC = custo / avanço)
   margem_prevista: number | null;
@@ -514,11 +519,13 @@ export function resultado(p: Projeto, hoje: string): Resultado {
   const contratado = honorarioTotal(p);
   const av = avancoProjeto(p);
   const agregado = arred(contratado * av);
-  const custo = custoHoras(p);
+  const custo_horas = custoHoras(p);
+  const despesas = px.totalDespesas(p);
+  const custo = arred(custo_horas + despesas);
   const custoPrev = av > 0.05 ? arred(custo / av) : null; // com menos de 5% de avanço a projeção não é confiável
   const prog = arred(p.parcelas.reduce((s, x) => s + x.valor, 0));
   return {
-    contratado, agregado, custo,
+    contratado, agregado, custo, custo_horas, despesas,
     margem: agregado > 0 ? (agregado - custo) / agregado : null,
     custo_previsto: custoPrev,
     margem_prevista: custoPrev !== null && contratado > 0 ? (contratado - custoPrev) / contratado : null,
@@ -599,6 +606,10 @@ export function alertasProjeto(p: Projeto, r: RegrasProjetos, hoje: string): Ale
   if (av >= 0.2 && (orc ? horasTotais(p) < orc * av * 0.25 : horasTotais(p) === 0)) {
     add("info", `${p.codigo}: poucas horas lançadas para ${Math.round(av * 100)}% de avanço`, "A margem só considera as horas lançadas — sem os lançamentos ela fica superestimada");
   }
+  const tarefasAtrasadas = p.tarefas.filter((t) => px.tarefaAtrasada(t, hoje));
+  if (tarefasAtrasadas.length) add("atencao", `${p.codigo}: ${tarefasAtrasadas.length} tarefa(s) atrasada(s)`, tarefasAtrasadas.slice(0, 3).map((t) => t.titulo).join(" · "), tarefasAtrasadas[0].prazo);
+  const semPreco = p.orcamento.filter((i) => !i.preco).length;
+  if (semPreco) add("info", `${p.codigo}: ${semPreco} item(ns) do orçamento sem preço`, "Complete os preços para o total do orçamento ficar correto");
   if (!p.inicio || !p.entrega) add("info", `${p.codigo}: sem início ou entrega definidos`, "Defina as datas para distribuir os prazos das fases e o vencimento das parcelas");
   if (Math.abs(somaPesos(p) - 100) > 0.01) add("atencao", `${p.codigo}: pesos das fases somam ${somaPesos(p)}%`, "A distribuição dos honorários deve fechar 100%");
   return out;
@@ -824,8 +835,21 @@ export function salvarProjeto(g: DadosProjetos, d: B, hoje: string): Projeto {
   const p: Projeto = {
     id: novoId("prj"), ...dados, codigo: dados.codigo || `PRJ-${ano}-${String(seq).padStart(3, "0")}`, oportunidade: cortar(d.oportunidade, 40),
     modelo, fases: fasesDoModelo(r, modelo, inicio, entrega), entregaveis: [], horas: [], parcelas: [], aditivos: [], obra: "", criado_em: hoje,
+    tarefas: [], ambientes: [], orcamento: [], arquivos: [], despesas: [], template: "",
   };
   if (g.projetos.some((x) => x.codigo === p.codigo)) throw new ValidacaoErro(`Já existe um projeto com o código ${p.codigo}`);
+  const tid = t_(d.template);
+  if (tid) {
+    const tpl = g.templates.find((x) => x.id === tid);
+    if (!tpl) throw new ValidacaoErro("Template não encontrado");
+    px.aplicarTemplate(p, tpl, hoje, (pesos) => {
+      const codigos = FASES.map((f) => f.codigo).filter((c) => c in pesos);
+      const fases = codigos.map((codigo) => ({ codigo, peso: pesos[codigo], horas_orcadas: 0, inicio: "", prazo: "", concluida_em: "", aprovada_em: "", aprovado_por: "", revisoes: 0 }));
+      distribuirPrazos(fases, inicio, entrega);
+      return fases;
+    });
+    if (!revTxt && tpl.revisoes !== null) p.revisoes_incluidas = tpl.revisoes;
+  }
   distribuirHoras(p);
   g.projetos.push(p);
   return p;
@@ -885,6 +909,7 @@ export function removerFase(g: DadosProjetos, id: string, codigo: string): Proje
   }
   if (p.fases.length === 1) throw new ValidacaoErro("O projeto precisa de pelo menos uma fase");
   p.fases = p.fases.filter((x) => x !== f);
+  for (const t of p.tarefas) if (t.fase === codigo) t.fase = "";
   return p;
 }
 

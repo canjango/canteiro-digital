@@ -12,12 +12,28 @@ import { useAcesso } from "./acesso";
 import { Carregando, Casca, Mensagens } from "./casca";
 import { useSistema } from "./provedor";
 import { TelaEquipe } from "./tela-equipe";
+import { guardarCapturaPendente } from "./projeto-telas";
 import { TelaProjetos } from "./tela-projetos";
 import { AREAS, Topbar } from "./topbar";
 
 /** Escolhe a área do sistema: painel de acesso, projetos, obras ou equipe. */
 export function Raiz() {
-  const { sis, carregado } = useSistema();
+  const { sis, carregado, acao } = useSistema();
+  // o favorito "Capturar p/ Canteiro" abre o sistema com #captura=<dados>: guarda e leva à tela de captura
+  React.useEffect(() => {
+    if (!carregado) return;
+    const receber = () => {
+      if (!location.hash.startsWith("#captura=")) return;
+      guardarCapturaPendente(decodeURIComponent(location.hash.slice(9)));
+      history.replaceState(null, "", location.pathname + location.search);
+      acao("ui.modulo", { modulo: "projetos" });
+      acao("ui.sub", { sub: "captura" });
+      window.dispatchEvent(new Event("canteiro:captura"));
+    };
+    receber();
+    window.addEventListener("hashchange", receber);
+    return () => window.removeEventListener("hashchange", receber);
+  }, [carregado]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!carregado) return <Carregando />;
   switch (sis.ui.modulo) {
     case "obras":

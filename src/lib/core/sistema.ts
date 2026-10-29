@@ -10,6 +10,7 @@ import { CATEGORIAS, MATERIAIS, etapaPadrao } from "./catalogo";
 import * as md from "./modulos";
 import * as gs from "./gestao";
 import * as pj from "./projetos";
+import * as px from "./projetos-extra";
 import { progressoEtapa } from "./analise";
 import {
   STATUS_CONTROLE, etapaDe, exportarObra, itemControleDe, lerObra, type Obra,
@@ -951,6 +952,125 @@ export class Sistema {
       Object.assign(this.ui, { modulo: "obras", obra: o.id, aba: "etapas", abertas: [o.etapas[0].codigo], fase: "", filtro_etapa: "", mat_abertas: [] });
       this.ui.msg = `Obra “${o.nome}” criada a partir do projeto (${padraoCub}, CUB-${o.uf_cub}), com ${o.etapas.length} etapas`;
       return { alteradas: [o.id], cadastros: true };
+    },
+    // tarefas do projeto
+    "tpj.salvar": (d) => {
+      const t = px.salvarTarefa(this.cadastros, s(d.id), d, this.hoje);
+      this.ui.novo = "";
+      return this.mudouCadastro(s(d.tid) ? `Tarefa “${t.titulo}” atualizada` : `Tarefa “${t.titulo}” criada`);
+    },
+    "tpj.mover": (d) => {
+      const t = px.moverTarefa(this.cadastros, s(d.id), s(d.tid), s(d.status), this.hoje);
+      return this.mudouCadastro(`“${t.titulo}”: ${t.status.toLowerCase()}`);
+    },
+    "tpj.item": (d) => {
+      px.marcarItemTarefa(this.cadastros, s(d.id), s(d.tid), Math.trunc(lerNumero(d.indice, "Item")));
+      return this.mudouCadastro("");
+    },
+    "tpj.remover": (d) => {
+      const tid = s(d.tid);
+      if (this.ui.confirmar !== tid) {
+        this.ui.confirmar = tid;
+        return {};
+      }
+      px.removerTarefa(this.cadastros, s(d.id), tid);
+      this.ui.confirmar = "";
+      return this.mudouCadastro("Tarefa excluída");
+    },
+    // orçamento do projeto
+    "orc.ambientes": (d) => {
+      const p = px.salvarAmbientes(this.cadastros, s(d.id), d.ambientes);
+      return this.mudouCadastro(`${p.ambientes.length} ambiente(s) em ${p.codigo}`);
+    },
+    "orc.item": (d) => {
+      const i = px.salvarItem(this.cadastros, s(d.id), d);
+      return this.mudouCadastro(`“${i.descricao}” ${s(d.iid) ? "atualizado" : "incluído"} em ${i.ambiente} (${moeda(px.totalItem(i))})`);
+    },
+    "orc.status": (d) => {
+      const i = px.statusItem(this.cadastros, s(d.id), s(d.iid), s(d.status));
+      return this.mudouCadastro(`“${i.descricao}”: ${i.status.toLowerCase()}`);
+    },
+    "orc.remover": (d) => {
+      const iid = s(d.iid);
+      if (this.ui.confirmar !== iid) {
+        this.ui.confirmar = iid;
+        return {};
+      }
+      px.removerItem(this.cadastros, s(d.id), iid);
+      this.ui.confirmar = "";
+      return this.mudouCadastro("Item excluído do orçamento");
+    },
+    // biblioteca de produtos
+    "prd.salvar": (d) => {
+      const x = px.salvarProduto(this.cadastros, d, this.hoje);
+      this.limparEdicao();
+      return this.mudouCadastro(s(d.id) ? `“${x.nome}” atualizado` : `“${x.nome}” incluído na biblioteca`);
+    },
+    "prd.precos": (d) => {
+      const n = px.propagarPreco(this.cadastros, s(d.id));
+      return this.mudouCadastro(n ? `Preço atualizado em ${n} item(ns) especificado(s)` : "Nenhum item especificado com preço diferente");
+    },
+    "prd.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      const x = px.removerProduto(this.cadastros, id);
+      this.limparEdicao();
+      return this.mudouCadastro(`“${x.nome}” excluído da biblioteca`);
+    },
+    // templates
+    "tpl.salvar": (d) => {
+      const x = px.salvarTemplate(this.cadastros, d);
+      this.limparEdicao();
+      return this.mudouCadastro(`Template “${x.nome}” salvo`);
+    },
+    "tpl.do_projeto": (d) => {
+      const x = px.templateDoProjeto(this.cadastros, s(d.id), d.nome);
+      return this.mudouCadastro(`Template “${x.nome}” criado a partir do projeto`);
+    },
+    "tpl.remover": (d) => {
+      const id = s(d.id);
+      if (this.ui.confirmar !== id) {
+        this.ui.confirmar = id;
+        return {};
+      }
+      const x = px.removerTemplate(this.cadastros, id);
+      this.limparEdicao();
+      return this.mudouCadastro(`Template “${x.nome}” excluído`);
+    },
+    "tpl.restaurar": () => {
+      const n = px.restaurarTemplates(this.cadastros);
+      return this.mudouCadastro(n ? `${n} template(s) padrão restaurado(s)` : "Os templates padrão já estão na lista");
+    },
+    // arquivos
+    "arq.salvar": (d) => {
+      const a = px.salvarArquivo(this.cadastros, s(d.id), d, this.hoje);
+      return this.mudouCadastro(`“${a.nome}” (R${String(a.revisao).padStart(2, "0")}) salvo em ${a.pasta}`);
+    },
+    "arq.remover": (d) => {
+      const aid = s(d.aid);
+      if (this.ui.confirmar !== aid) {
+        this.ui.confirmar = aid;
+        return {};
+      }
+      px.removerArquivo(this.cadastros, s(d.id), aid);
+      this.ui.confirmar = "";
+      return this.mudouCadastro("Arquivo removido da lista");
+    },
+    // despesas
+    "dsp.salvar": (d) => {
+      const x = px.salvarDespesa(this.cadastros, s(d.id), d, this.hoje);
+      return this.mudouCadastro(`Despesa “${x.descricao}” lançada (${moeda(x.valor)})`);
+    },
+    "dsp.pago": (d) => {
+      const x = px.alternarPagamento(this.cadastros, s(d.id), s(d.did));
+      return this.mudouCadastro(`“${x.descricao}”: ${x.pago ? "paga" : "a pagar"}`);
+    },
+    "dsp.remover": (d) => {
+      px.removerDespesa(this.cadastros, s(d.id), s(d.did));
+      return this.mudouCadastro("Despesa excluída");
     },
     // propostas e licitações
     "opo.salvar": (d) => {

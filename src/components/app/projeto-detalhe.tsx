@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { Campo, CampoNumero, Nota, Pill } from "./comum";
 import { AbasArea, BotaoExcluir, GRADE_FORM, Indicadores, Sugestoes } from "./modulo-comum";
 import { useEnviar, useSistema } from "./provedor";
+import { ArquivosProjeto, DespesasLancamento, OrcamentoProjeto, TarefasDoProjeto } from "./projeto-telas";
 import { FormProjeto } from "./tela-projetos";
 
 const nomeFase = (c: string) => pj.faseCatalogo(c)?.nome ?? c;
@@ -50,6 +51,7 @@ export function DetalheProjeto({ p }: { p: pj.Projeto }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setEditar((x) => !x)}><PencilIcon />{editar ? "Fechar edição" : "Editar dados"}</Button>
+          <Button variant="outline" size="sm" onClick={() => acao("tpl.do_projeto", { id: p.id, nome: `Modelo — ${p.nome}` })}>Salvar como template</Button>
           <Button size="sm" onClick={() => acao("proj.obra", { id: p.id })}><HardHatIcon />{obra ? "Abrir obra" : "Gerar obra"}</Button>
         </div>
       </div>
@@ -59,7 +61,7 @@ export function DetalheProjeto({ p }: { p: pj.Projeto }) {
         itens={[
           { rotulo: "Contratado", valor: moeda(r.contratado), sub: p.aditivos.length ? `inclui ${moeda(pj.totalAditivos(p))} de aditivos` : p.honorarios.metodo },
           { rotulo: "Avanço", valor: pct(av), sub: `valor agregado ${moeda(r.agregado)}` },
-          { rotulo: "Custo das horas", valor: moeda(r.custo), sub: `${num(horas)} h de ${num(orcadas)} h orçadas`, tom: orcadas && horas > orcadas ? "critico" : undefined },
+          { rotulo: "Custo total", valor: moeda(r.custo), sub: `${num(horas)} h de ${num(orcadas)} h${r.despesas ? ` · ${moeda(r.despesas)} despesas` : " orçadas"}`, tom: orcadas && horas > orcadas ? "critico" : undefined },
           {
             rotulo: "Margem", valor: r.margem === null ? "—" : pct(r.margem),
             sub: r.margem_prevista === null ? "sobre as horas lançadas · projeção após 5% de avanço" : `sobre as horas lançadas · prevista no término ${pct(r.margem_prevista)}`,
@@ -88,6 +90,10 @@ export function DetalheProjeto({ p }: { p: pj.Projeto }) {
           { id: "financeiro", rotulo: "Honorários e parcelas", curto: "Financeiro", contagem: p.parcelas.length },
           { id: "horas", rotulo: "Horas", contagem: p.horas.length },
           { id: "entregaveis", rotulo: "Entregáveis", contagem: p.entregaveis.length },
+          { id: "tarefas", rotulo: "Tarefas", contagem: p.tarefas.filter((t) => t.status !== "Concluída").length },
+          { id: "orcamento", rotulo: "Orçamento", contagem: p.orcamento.length },
+          { id: "arquivos", rotulo: "Arquivos", contagem: p.arquivos.length },
+          { id: "despesas", rotulo: "Despesas", contagem: p.despesas.length },
           { id: "aditivos", rotulo: "Aditivos", contagem: p.aditivos.length },
         ]}
       />
@@ -96,6 +102,10 @@ export function DetalheProjeto({ p }: { p: pj.Projeto }) {
       {aba === "horas" && <AbaHoras p={p} />}
       {aba === "entregaveis" && <AbaEntregaveis p={p} />}
       {aba === "aditivos" && <AbaAditivos p={p} />}
+      {aba === "tarefas" && <TarefasDoProjeto p={p} />}
+      {aba === "orcamento" && <OrcamentoProjeto p={p} />}
+      {aba === "arquivos" && <ArquivosProjeto p={p} />}
+      {aba === "despesas" && <DespesasLancamento p={p} />}
       <div className="flex flex-wrap items-center gap-3 border-t pt-3">
         {p.observacao && <Nota className="min-w-0 flex-1 whitespace-pre-line">{p.observacao}</Nota>}
         <BotaoExcluir acaoNome="proj.remover" id={p.id} rotulo="Excluir projeto" pergunta={`Excluir ${p.codigo} e todos os lançamentos?`} />

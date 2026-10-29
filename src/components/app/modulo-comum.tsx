@@ -136,9 +136,9 @@ export function Barras({ linhas, formatar }: { linhas: { rotulo: string; valor: 
     <ul className="flex flex-col gap-1.5">
       {linhas.map((l) => (
         <li key={l.rotulo}>
-          <button type="button" onClick={l.aoClicar} disabled={!l.aoClicar} className="grid w-full grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-1 py-1 text-left text-[0.84rem] enabled:hover:bg-muted">
+          <button type="button" onClick={l.aoClicar} disabled={!l.aoClicar} className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1 rounded-md px-1 py-1 text-left text-[0.84rem] enabled:hover:bg-muted sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto]">
             <span className="truncate">{l.rotulo}</span>
-            <span className="h-2 rounded-full bg-muted"><span className="block h-full rounded-full bg-foreground" style={{ width: `${(l.valor / maior) * 100}%` }} /></span>
+            <span className="order-last col-span-full h-2 rounded-full bg-muted sm:order-none sm:col-span-1"><span className="block h-full rounded-full bg-foreground" style={{ width: `${(l.valor / maior) * 100}%` }} /></span>
             <span className="text-right font-mono text-[0.78rem]">{formatar(l.valor)}{l.extra ? <span className="text-muted-foreground"> · {l.extra}</span> : null}</span>
           </button>
         </li>

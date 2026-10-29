@@ -1,7 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangleIcon, CalendarClockIcon, ChevronRightIcon, FileWarningIcon, GavelIcon, InfoIcon } from "lucide-react";
+import {
+  AlertTriangleIcon, CalculatorIcon, CalendarClockIcon, ChartGanttIcon, ChartNoAxesCombinedIcon, ChevronRightIcon, FileCheck2Icon, FileWarningIcon,
+  FolderOpenIcon, GavelIcon, InfoIcon, LayoutDashboardIcon, LibraryBigIcon, ListTodoIcon, NetworkIcon, PanelsTopLeftIcon, SlidersHorizontalIcon,
+  SquareDashedMousePointerIcon,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { UFS, rotuloUf, valorReferencia } from "@/lib/core/catalogo";
 import * as pj from "@/lib/core/projetos";
+import * as px from "@/lib/core/projetos-extra";
 import { arred, dataBr, diasEntre, moeda, num, pct, somarDias, valorBr } from "@/lib/core/util";
 import { cn } from "@/lib/utils";
 import { Campo, Nota, Pill } from "./comum";
@@ -19,36 +24,87 @@ import { DetalheProjeto } from "./projeto-detalhe";
 import { TelaDocumentos, TelaRegras } from "./projeto-config";
 import { TelaOportunidades } from "./projeto-oportunidades";
 import { useEnviar, useSistema } from "./provedor";
+import { TelaArquivos, TelaBiblioteca, TelaCaptura, TelaCronograma, TelaFinanceiro, TelaOrcamento, TelaTarefasProjetos, TelaTemplates } from "./projeto-telas";
+
+const MENU: { id: string; rotulo: string; curto?: string; Icone: React.ComponentType<{ className?: string }>; grupo?: string }[] = [
+  { id: "visao", rotulo: "Visão geral", curto: "Visão", Icone: LayoutDashboardIcon },
+  { id: "cronograma", rotulo: "Cronograma de Projetos", curto: "Cronograma", Icone: ChartGanttIcon },
+  { id: "tarefas", rotulo: "Gestão de Tarefas", curto: "Tarefas", Icone: ListTodoIcon },
+  { id: "orcamento", rotulo: "Orçamento de Projeto", curto: "Orçamento", Icone: CalculatorIcon },
+  { id: "captura", rotulo: "Extensão de Captura", curto: "Captura", Icone: SquareDashedMousePointerIcon },
+  { id: "biblioteca", rotulo: "Biblioteca de Produtos", curto: "Biblioteca", Icone: LibraryBigIcon },
+  { id: "templates", rotulo: "Templates para Projetos", curto: "Templates", Icone: PanelsTopLeftIcon },
+  { id: "arquivos", rotulo: "Gestão de Arquivos", curto: "Arquivos", Icone: FolderOpenIcon },
+  { id: "projetos", rotulo: "Gestão de Projetos", curto: "Projetos", Icone: NetworkIcon },
+  { id: "financeiro", rotulo: "Financeiro do Projeto", curto: "Financeiro", Icone: ChartNoAxesCombinedIcon },
+  { id: "oportunidades", rotulo: "Propostas e licitações", curto: "Propostas", Icone: GavelIcon, grupo: "Comercial" },
+  { id: "documentos", rotulo: "Habilitação", Icone: FileCheck2Icon, grupo: "Comercial" },
+  { id: "regras", rotulo: "Regras do escritório", curto: "Regras", Icone: SlidersHorizontalIcon, grupo: "Comercial" },
+];
 
 export function TelaProjetos() {
   const { sis, acao } = useSistema();
   const g = sis.cadastros;
-  const [subBase, filtroCat] = (sis.ui.sub || "visao").split("|");
-  const sub = ["visao", "projetos", "oportunidades", "documentos", "regras"].includes(subBase) ? subBase : "visao";
+  const [subBase, param] = (sis.ui.sub || "visao").split("|");
+  const sub = MENU.some((m) => m.id === subBase) ? subBase : "visao";
   const alertas = pj.todosAlertas(g, sis.hoje);
-  const abertas = g.oportunidades.filter((o) => !pj.FINAIS.includes(o.etapa)).length;
-  const docsAlerta = pj.alertasDocumentos(g.documentos, g.regras, sis.hoje).length;
+  const contagem: Record<string, { n: number; alerta?: boolean }> = {
+    visao: { n: alertas.filter((a) => a.nivel === "critico").length, alerta: true },
+    tarefas: { n: px.todasTarefas(g).filter(({ t }) => px.tarefaAtrasada(t, sis.hoje)).length, alerta: true },
+    biblioteca: { n: g.produtos.length },
+    templates: { n: g.templates.length },
+    projetos: { n: g.projetos.filter(pj.projetoAtivo).length },
+    oportunidades: { n: g.oportunidades.filter((o) => !pj.FINAIS.includes(o.etapa)).length },
+    documentos: { n: pj.alertasDocumentos(g.documentos, g.regras, sis.hoje).length, alerta: true },
+  };
   const aberto = sub === "projetos" && sis.ui.editando ? g.projetos.find((p) => p.id === sis.ui.editando) : undefined;
+  const ir = (id: string) => acao("ui.sub", { sub: id });
   return (
-    <>
-      <AbasArea
-        rotulo="Gestão de projetos"
-        atual={sub}
-        aoEscolher={(id) => acao("ui.sub", { sub: id })}
-        abas={[
-          { id: "visao", rotulo: "Visão geral", curto: "Visão", contagem: alertas.filter((a) => a.nivel === "critico").length, alerta: true },
-          { id: "projetos", rotulo: "Projetos", contagem: g.projetos.filter(pj.projetoAtivo).length },
-          { id: "oportunidades", rotulo: "Propostas e licitações", curto: "Propostas", contagem: abertas },
-          { id: "documentos", rotulo: "Habilitação", contagem: docsAlerta, alerta: docsAlerta > 0 },
-          { id: "regras", rotulo: "Regras" },
-        ]}
-      />
-      {sub === "visao" && <VisaoGeral alertas={alertas} />}
-      {sub === "projetos" && (aberto ? <DetalheProjeto p={aberto} /> : <ListaProjetos categoriaInicial={filtroCat ?? ""} />)}
-      {sub === "oportunidades" && <TelaOportunidades />}
-      {sub === "documentos" && <TelaDocumentos />}
-      {sub === "regras" && <TelaRegras />}
-    </>
+    <div className="grid items-start gap-4 lg:grid-cols-[232px_minmax(0,1fr)]">
+      <nav aria-label="Gestão de projetos" className="hidden flex-col gap-0.5 rounded-lg border bg-card p-2 lg:sticky lg:top-[72px] lg:flex">
+        <p className="px-2.5 pb-1.5 pt-1 text-[0.92rem] font-bold">Gestão de Projetos</p>
+        {MENU.map((m, k) => {
+          const ativo = sub === m.id;
+          const c = contagem[m.id];
+          return (
+            <React.Fragment key={m.id}>
+              {m.grupo && MENU[k - 1]?.grupo !== m.grupo && <p className="mt-2 border-t px-2.5 pb-1 pt-2.5 text-[0.72rem] font-semibold uppercase tracking-wider text-muted-foreground">{m.grupo}</p>}
+              <button
+                type="button"
+                aria-current={ativo ? "page" : undefined}
+                onClick={() => ir(m.id)}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[0.88rem] transition-colors hover:bg-muted",
+                  ativo && "bg-sinal-suave font-semibold text-foreground shadow-[inset_3px_0_0_var(--sinal)] hover:bg-sinal-suave",
+                )}
+              >
+                <m.Icone className={cn("size-[18px] shrink-0", ativo ? "text-foreground" : "text-muted-foreground")} />
+                <span className="min-w-0 flex-1 truncate">{m.rotulo}</span>
+                {c && c.n > 0 && <span className={cn("min-w-5 rounded-full px-1 text-center font-mono text-[0.7rem] leading-5", c.alerta ? "bg-critico text-selo-texto" : "bg-muted text-muted-foreground")}>{c.n}</span>}
+              </button>
+            </React.Fragment>
+          );
+        })}
+      </nav>
+      <div className="flex min-w-0 flex-col gap-4">
+        <div className="lg:hidden">
+          <AbasArea rotulo="Gestão de projetos (seções)" atual={sub} aoEscolher={ir} abas={MENU.map((m) => ({ id: m.id, rotulo: m.rotulo, curto: m.curto, contagem: contagem[m.id]?.n, alerta: contagem[m.id]?.alerta }))} />
+        </div>
+        {sub === "visao" && <VisaoGeral alertas={alertas} />}
+        {sub === "cronograma" && <TelaCronograma />}
+        {sub === "tarefas" && <TelaTarefasProjetos />}
+        {sub === "orcamento" && <TelaOrcamento projetoInicial={param ?? ""} />}
+        {sub === "captura" && <TelaCaptura />}
+        {sub === "biblioteca" && <TelaBiblioteca />}
+        {sub === "templates" && <TelaTemplates />}
+        {sub === "arquivos" && <TelaArquivos projetoInicial={param ?? ""} />}
+        {sub === "projetos" && (aberto ? <DetalheProjeto p={aberto} /> : <ListaProjetos categoriaInicial={param ?? ""} />)}
+        {sub === "financeiro" && <TelaFinanceiro />}
+        {sub === "oportunidades" && <TelaOportunidades />}
+        {sub === "documentos" && <TelaDocumentos />}
+        {sub === "regras" && <TelaRegras />}
+      </div>
+    </div>
   );
 }
 
@@ -202,9 +258,9 @@ function ListaProjetos({ categoriaInicial }: { categoriaInicial: string }) {
     <>
       <Card className="flex-row flex-wrap items-center justify-between gap-2.5 p-3 md:p-4">
         <Nota className="min-w-0 flex-1 basis-72">Projetos separados por tipo de obra. As fases, os pesos e o % de honorários vêm das regras do escritório e podem ser ajustados em cada projeto.</Nota>
-        <Button onClick={() => acao("ui.novo", { qual: "projeto" })} variant={sis.ui.novo === "projeto" ? "outline" : "default"}>{sis.ui.novo === "projeto" ? "Fechar formulário" : "Novo projeto"}</Button>
+        <Button onClick={() => acao("ui.novo", { qual: sis.ui.novo.startsWith("projeto") ? sis.ui.novo : "projeto" })} variant={sis.ui.novo.startsWith("projeto") ? "outline" : "default"}>{sis.ui.novo.startsWith("projeto") ? "Fechar formulário" : "Novo projeto"}</Button>
       </Card>
-      {sis.ui.novo === "projeto" && <FormProjeto />}
+      {sis.ui.novo.startsWith("projeto") && <FormProjeto key={sis.ui.novo} />}
       <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]" role="group" aria-label="Tipo de obra">
         {["", ...pj.CATEGORIAS].map((c) => (
           <Button key={c || "todas"} size="sm" variant={cat === c ? "default" : "outline"} aria-pressed={cat === c} onClick={() => setCat(c)} className="shrink-0">
@@ -287,6 +343,15 @@ export function FormProjeto({ p, aoFechar }: { p?: pj.Projeto; aoFechar?: () => 
   const [origem, setOrigem] = React.useState<string>(p?.origem ?? "Cliente particular");
   const [uf, setUf] = React.useState(p?.uf ?? "PB");
   const [metodo, setMetodo] = React.useState<pj.MetodoHonorario>(p?.honorarios.metodo ?? "Percentual do custo da obra");
+  const tplInicial = !p && sis.ui.novo.startsWith("projeto:") ? sis.ui.novo.slice(8) : "";
+  const [template, setTemplate] = React.useState(tplInicial);
+  const escolherTemplate = (id: string) => {
+    setTemplate(id);
+    const t = sis.cadastros.templates.find((x) => x.id === id);
+    if (t && pj.TIPOS_OBRA.includes(t.tipo_obra)) setTipo(t.tipo_obra);
+    if (t && (pj.PADROES_PROJETO as readonly string[]).includes(t.padrao)) setPadrao(t.padrao as pj.PadraoProjeto);
+  };
+  React.useEffect(() => { if (tplInicial) escolherTemplate(tplInicial); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [v, setV] = React.useState({
     area: p ? num(p.area) : "", percentual: p ? num(p.honorarios.percentual) : "", custo_m2: p ? valorBr(p.honorarios.custo_m2) : "",
     valor_m2: p?.honorarios.valor_m2 ? valorBr(p.honorarios.valor_m2) : "", valor_fixo: p?.honorarios.valor_fixo ? valorBr(p.honorarios.valor_fixo) : "",
@@ -313,7 +378,15 @@ export function FormProjeto({ p, aoFechar }: { p?: pj.Projeto; aoFechar?: () => 
       <form className="flex flex-col gap-4" onSubmit={(e) => { const res = enviar("proj.salvar", p ? { id: p.id } : {})(e); if (res.ok) aoFechar?.(); }}>
         <fieldset className={GRADE_FORM}>
           <legend className="mb-1 text-[0.78rem] font-semibold uppercase tracking-wider text-muted-foreground">Identificação</legend>
-          <Campo rotulo="Nome do projeto" className="col-span-full"><Input name="nome" required maxLength={200} defaultValue={p?.nome} placeholder="Ex.: Residência Silva" /></Campo>
+          <Campo rotulo="Nome do projeto" className="col-span-full sm:col-span-2"><Input name="nome" required maxLength={200} defaultValue={p?.nome} placeholder="Ex.: Residência Silva" /></Campo>
+          {!p && (
+            <Campo rotulo="Template (opcional)">
+              <NativeSelect name="template" value={template} onChange={(e) => escolherTemplate(e.target.value)}>
+                <option value="">Sem template (só as fases)</option>
+                {sis.cadastros.templates.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+              </NativeSelect>
+            </Campo>
+          )}
           <Campo rotulo="Tipo de obra">
             <NativeSelect name="tipo_obra" value={tipo} onChange={(e) => setTipo(e.target.value)}>
               {pj.CATEGORIAS.map((c) => <optgroup key={c} label={c}>{pj.CATEGORIAS_OBRA[c].map((t) => <option key={t}>{t}</option>)}</optgroup>)}
@@ -337,7 +410,7 @@ export function FormProjeto({ p, aoFechar }: { p?: pj.Projeto; aoFechar?: () => 
           <Campo rotulo="Situação"><NativeSelect name="status" defaultValue={p?.status ?? "Em andamento"}>{pj.STATUS_PROJETO.map((x) => <option key={x}>{x}</option>)}</NativeSelect></Campo>
           <Campo rotulo="Código"><Input name="codigo" maxLength={20} defaultValue={p?.codigo} placeholder="Automático (PRJ-ano-nº)" /></Campo>
           <Nota className="col-span-full text-[0.78rem]">
-            Categoria: <b>{categoria}</b> · modelo de fases: <b>{modelo}</b> ({fases.join(" → ")}){p ? " — para mudar as fases, use a aba Fases do projeto." : "."}
+            Categoria: <b>{categoria}</b> · {template && !p ? <>template: <b>{sis.cadastros.templates.find((t) => t.id === template)?.nome}</b> (fases, tarefas e ambientes do template)</> : <>modelo de fases: <b>{modelo}</b> ({fases.join(" → ")})</>}{p ? " — para mudar as fases, use a aba Fases do projeto." : "."}
           </Nota>
         </fieldset>
         <fieldset className={GRADE_FORM}>
@@ -374,7 +447,7 @@ export function FormProjeto({ p, aoFechar }: { p?: pj.Projeto; aoFechar?: () => 
         <Sugestoes id="pessoas-projeto" valores={pessoas} />
         <div className="flex flex-wrap gap-2">
           <Button type="submit">{p ? "Salvar alterações" : "Criar projeto"}</Button>
-          <Button type="button" variant="outline" onClick={() => (aoFechar ? aoFechar() : acao("ui.novo", { qual: "projeto" }))}>Cancelar</Button>
+          <Button type="button" variant="outline" onClick={() => (aoFechar ? aoFechar() : acao("ui.novo", { qual: sis.ui.novo }))}>Cancelar</Button>
         </div>
         {!p && <Nota className="flex items-start gap-1.5 text-[0.76rem]"><InfoIcon className="mt-0.5 size-3.5 shrink-0" />Com início e entrega preenchidos, os prazos das fases são distribuídos pelos pesos. As horas estimadas viram o orçamento de horas de cada fase.</Nota>}
       </form>
