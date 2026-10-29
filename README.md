@@ -14,9 +14,28 @@ Ao abrir, o sistema pede **usuário e senha** (no primeiro acesso cria-se o admi
 honorários; gera a obra a partir do projeto), **Gestão de obras** (tudo abaixo) e **Gestão de equipe**
 (pessoas, alocação por obra, presença, custo do mês e acessos ao sistema).
 
-As contas ficam no navegador (`localStorage`), com a senha guardada só como hash PBKDF2-SHA-256
-(210 mil iterações, sal por conta) e pausa progressiva após 5 tentativas erradas. Sem servidor, isso
-protege contra uso casual do aparelho, mas não substitui autenticação no servidor.
+Sem servidor, as contas ficam no navegador (`localStorage`), com a senha guardada só como hash PBKDF2-SHA-256
+(210 mil iterações, sal por conta) e pausa progressiva após 5 tentativas erradas — isso protege contra uso
+casual do aparelho, mas não substitui autenticação no servidor. Com o **servidor do escritório** (abaixo), as
+contas, sessões e dados ficam no PostgreSQL e cada pessoa usa o mesmo acesso em qualquer aparelho.
+
+## Servidor do escritório (Node.js + Express + PostgreSQL)
+
+A pasta [`server/`](server/README.md) tem a API e o banco: contas e sessões no servidor, obras e cadastros
+guardados em PostgreSQL com controle de versão, sincronização entre aparelhos a cada 15 s, mescla automática
+quando duas pessoas editam ao mesmo tempo, histórico de versões, visões SQL para relatórios e exportação em CSV.
+
+```bash
+cp server/.env.example .env        # troque POSTGRES_PASSWORD
+docker compose up -d --build       # sobe PostgreSQL + aplicativo + API em http://localhost:3000
+```
+
+Sem Docker: `cd server && npm ci && npm run build && DATABASE_URL=… PASTA_APP=../out npm start`
+(depois de `npm run build` na raiz). Detalhes, endpoints e opções de hospedagem em [server/README.md](server/README.md).
+
+Para usar o site do GitHub Pages com o servidor, na tela de entrada clique em **conectar a um servidor** e
+informe o endereço (https). Quem já usava o sistema no modo local envia os dados em **Gestão de equipe →
+Acessos → Servidor do escritório**. Sem servidor, tudo continua funcionando como antes, só no navegador.
 
 ## Gestão de projetos
 

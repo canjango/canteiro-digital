@@ -27,7 +27,7 @@ const css = await esbuild.build({
 const js = await esbuild.build({
   entryPoints: [path.join(raiz, "src/artifact/entrada.tsx")],
   bundle: true, minify: true, write: false, format: "iife", target: "es2020", jsx: "automatic",
-  define: { "process.env.NODE_ENV": '"production"' }, tsconfig: path.join(raiz, "tsconfig.json"),
+  define: { "process.env.NODE_ENV": '"production"', "process.env.NEXT_PUBLIC_API_URL": '""' }, tsconfig: path.join(raiz, "tsconfig.json"),
   logLevel: "warning", legalComments: "none",
 });
 rmSync(twOut, { force: true });

@@ -62,6 +62,8 @@ const salvarContas = (contas: Conta[]) => {
 };
 
 export const listarContas = (): ContaPublica[] => contasBrutas().map(publica);
+/** Para levar os acessos deste navegador ao servidor: vai o hash PBKDF2, nunca a senha. */
+export const exportarContas = () => contasBrutas().map(({ nome, usuario, papel, sal, hash, iteracoes }) => ({ nome, usuario, papel, sal, hash, iteracoes }));
 export const existeConta = () => contasBrutas().length > 0;
 
 // ---------------------------------------------------------------- criptografia

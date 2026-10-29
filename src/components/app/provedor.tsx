@@ -105,6 +105,13 @@ export function ProvedorSistema({ children, hoje = null }: { children: React.Rea
     });
   }, [sis, redesenhar, atualizarModoIa]);
 
+  // sincronização com o servidor: liga ao montar, desliga ao sair (seguro com o StrictMode)
+  React.useEffect(() => {
+    const p = platRef.current;
+    p?.retomar();
+    return () => p?.parar();
+  }, []);
+
   const valor = React.useMemo<Api>(
     () => ({ sis, versao, avisoId, carregado, status, plataforma: platRef.current!, acao, atualizarModoIa }),
     [sis, versao, avisoId, carregado, status, acao, atualizarModoIa],

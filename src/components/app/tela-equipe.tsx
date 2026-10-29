@@ -9,10 +9,12 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import * as ac from "@/lib/acesso";
+import * as ct from "@/lib/contas";
 import * as gs from "@/lib/core/gestao";
 import { dataBr, moeda, num, somarDias, valorBr } from "@/lib/core/util";
 import { cn } from "@/lib/utils";
 import { useAcesso } from "./acesso";
+import { PainelServidor } from "./painel-servidor";
 import { Campo, CampoNumero, Nota } from "./comum";
 import { BarraModulo, BotaoExcluir, Busca, casa, GRADE_FORM, Indicadores, Sugestoes, Vazio } from "./modulo-comum";
 import { useEnviar, useSistema } from "./provedor";
@@ -278,7 +280,7 @@ function Aviso({ msg }: { msg: { texto: string; erro: boolean } | null }) {
 }
 
 function Acessos() {
-  const { conta, contas, recarregar } = useAcesso();
+  const { conta, contas, recarregar, modo } = useAcesso();
   const admin = conta?.papel === "admin";
   if (!conta) return null;
   return (
@@ -286,10 +288,14 @@ function Acessos() {
       <Card className="flex-row flex-wrap items-center gap-2.5 p-3.5">
         <ShieldIcon className="size-5 shrink-0" />
         <Nota className="min-w-0 flex-1 basis-72">
-          Usuários e senhas ficam guardados <b>neste aparelho</b>, com a senha criptografada. Cada pessoa que for usar outro celular ou computador
-          precisa ter o acesso criado nele também. {admin ? "Como administrador, você cria acessos e redefine senhas." : "Peça a um administrador para criar ou redefinir acessos."}
+          {modo === "servidor"
+            ? <>Usuários e senhas ficam no <b>servidor do escritório</b>, com a senha criptografada: cada pessoa entra com o mesmo acesso em qualquer aparelho.</>
+            : <>Usuários e senhas ficam guardados <b>neste aparelho</b>, com a senha criptografada. Cada pessoa que for usar outro celular ou computador
+              precisa ter o acesso criado nele também — ou conecte um servidor do escritório.</>}{" "}
+          {admin ? "Como administrador, você cria acessos e redefine senhas." : "Peça a um administrador para criar ou redefinir acessos."}
         </Nota>
       </Card>
+      <PainelServidor />
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <MinhaSenha />
         {admin && <NovoAcesso aoCriar={recarregar} />}
@@ -305,7 +311,7 @@ function Acessos() {
 }
 
 function MinhaSenha() {
-  const { conta } = useAcesso();
+  const { conta, modo } = useAcesso();
   const { msg, ocupado, rodar } = useOperacao();
   const enviar = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -313,7 +319,7 @@ function MinhaSenha() {
     const f = new FormData(form);
     const nova = String(f.get("nova") ?? "");
     if (nova !== String(f.get("confirmar") ?? "")) return rodar(() => { throw new ac.AcessoErro("As senhas novas não são iguais."); }, "");
-    if (await rodar(() => ac.alterarSenha(conta!.id, String(f.get("atual") ?? ""), nova), "Senha alterada.")) form.reset();
+    if (await rodar(() => ct.alterarSenha(conta!.id, String(f.get("atual") ?? ""), nova), modo === "servidor" ? "Senha alterada. Os outros aparelhos conectados precisarão entrar de novo." : "Senha alterada.")) form.reset();
   };
   return (
     <Card className="gap-3 p-4">
@@ -330,7 +336,7 @@ function MinhaSenha() {
   );
 }
 
-function NovoAcesso({ aoCriar }: { aoCriar: () => void }) {
+function NovoAcesso({ aoCriar }: { aoCriar: () => Promise<void> }) {
   const { conta } = useAcesso();
   const { sis } = useSistema();
   const { msg, ocupado, rodar } = useOperacao();
@@ -339,9 +345,9 @@ function NovoAcesso({ aoCriar }: { aoCriar: () => void }) {
     const form = e.currentTarget;
     const f = new FormData(form);
     const d = { nome: String(f.get("nome") ?? ""), usuario: String(f.get("usuario") ?? ""), senha: String(f.get("senha") ?? ""), papel: (String(f.get("papel")) === "admin" ? "admin" : "membro") as ac.Papel };
-    if (await rodar(() => ac.criarConta(d, conta), `Acesso de ${d.nome} criado. Passe o usuário e a senha provisória para a pessoa.`)) {
+    if (await rodar(() => ct.criar(d, conta!), `Acesso de ${d.nome} criado. Passe o usuário e a senha provisória para a pessoa.`)) {
       form.reset();
-      aoCriar();
+      await aoCriar();
     }
   };
   return (
@@ -362,14 +368,14 @@ function NovoAcesso({ aoCriar }: { aoCriar: () => void }) {
   );
 }
 
-function LinhaAcesso({ c, eu, admin }: { c: ac.ContaPublica; eu: boolean; admin: boolean }) {
+function LinhaAcesso({ c, eu, admin }: { c: ct.ContaPublica; eu: boolean; admin: boolean }) {
   const { conta, recarregar } = useAcesso();
   const { msg, ocupado, rodar } = useOperacao();
   const [modo, setModo] = React.useState<"" | "senha" | "remover">("");
   const redefinir = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const nova = String(new FormData(e.currentTarget).get("nova") ?? "");
-    if (await rodar(() => ac.redefinirSenha(conta!, c.id, nova), "Senha redefinida. Passe a nova senha para a pessoa.")) setModo("");
+    if (await rodar(() => ct.redefinirSenha(conta!, c.id, nova), "Senha redefinida. Passe a nova senha para a pessoa.")) setModo("");
   };
   return (
     <li className="flex flex-col gap-2 px-3.5 py-2.5">
@@ -379,13 +385,13 @@ function LinhaAcesso({ c, eu, admin }: { c: ac.ContaPublica; eu: boolean; admin:
         </span>
         <span className="flex min-w-0 flex-1 basis-40 flex-col">
           <span className="font-medium">{c.nome}{eu && <span className="text-muted-foreground"> (você)</span>}</span>
-          <span className="text-[0.78rem] text-muted-foreground">@{c.usuario} · desde {new Date(c.criada_em).toLocaleDateString("pt-BR")}</span>
+          <span className="text-[0.78rem] text-muted-foreground">@{c.usuario} · desde {new Date(c.criada_em).toLocaleDateString("pt-BR")}{c.ultimo_acesso ? ` · último acesso ${new Date(c.ultimo_acesso).toLocaleDateString("pt-BR")}` : ""}</span>
         </span>
         {admin && !eu ? (
           <NativeSelect
             aria-label={`Permissão de ${c.nome}`}
             value={c.papel}
-            onChange={(e) => rodar(() => { ac.alterarPapel(conta!, c.id, e.target.value as ac.Papel); recarregar(); }, "Permissão alterada.")}
+            onChange={(e) => rodar(async () => { await ct.alterarPapel(conta!, c.id, e.target.value as ac.Papel); await recarregar(); }, "Permissão alterada.")}
             className="h-8 w-auto"
           >
             <option value="membro">Membro</option>
@@ -399,7 +405,7 @@ function LinhaAcesso({ c, eu, admin }: { c: ac.ContaPublica; eu: boolean; admin:
             <Button size="sm" variant="outline" onClick={() => setModo(modo === "senha" ? "" : "senha")}>Redefinir senha</Button>
             {modo === "remover" ? (
               <>
-                <Button size="sm" variant="destructive" disabled={ocupado} onClick={() => rodar(() => { ac.removerConta(conta!, c.id); recarregar(); }, "Acesso removido.")}>Sim, remover</Button>
+                <Button size="sm" variant="destructive" disabled={ocupado} onClick={() => rodar(async () => { await ct.remover(conta!, c.id); await recarregar(); }, "Acesso removido.")}>Sim, remover</Button>
                 <Button size="sm" variant="outline" onClick={() => setModo("")}>Cancelar</Button>
               </>
             ) : (

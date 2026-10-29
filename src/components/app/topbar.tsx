@@ -335,7 +335,7 @@ function MenuUsuario() {
           {pl.TEMAS.map((t) => <DropdownMenuRadioItem key={t.id} value={t.id}>{t.nome}</DropdownMenuRadioItem>)}
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => { acao("ui.modulo", { modulo: "hub" }); sair(); }} className="text-critico"><LogOutIcon />Sair</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => { acao("ui.modulo", { modulo: "hub" }); void sair(); }} className="text-critico"><LogOutIcon />Sair</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

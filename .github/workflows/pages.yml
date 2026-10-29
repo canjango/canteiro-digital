@@ -41,8 +41,39 @@ jobs:
         with:
           path: out
 
+  servidor:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: canteiro
+          POSTGRES_PASSWORD: canteiro
+          POSTGRES_DB: canteiro_teste
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U canteiro" --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Instalar dependências do servidor
+        run: npm ci
+      - name: Verificar tipos e montar
+        run: npm run build
+      - name: Testes de integração (API + PostgreSQL)
+        run: npm test
+        env:
+          DATABASE_URL_TESTE: postgres://canteiro:canteiro@localhost:5432/canteiro_teste
+
   deploy:
-    needs: build
+    needs: [build, servidor]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

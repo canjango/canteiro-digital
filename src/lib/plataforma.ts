@@ -5,12 +5,35 @@
  *   capacidade "sample" (usa a conta de quem está vendo).
  * - Site externo (GitHub Pages): dados no localStorage deste navegador e revisão com a chave
  *   de API do próprio usuário, guardada só neste navegador (nunca vai para o banco nem para o código).
+ * - Com servidor do escritório (pasta server/: Express + PostgreSQL): dados no banco, sincronizados
+ *   entre aparelhos a cada 15 s; gravações com controle de versão e mescla automática quando duas
+ *   pessoas alteram o mesmo documento (lib/core/mesclar.ts).
  */
+import { mesclar } from "@/lib/core/mesclar";
 import type { Obra } from "@/lib/core/modelos";
+import { api, ErroServidor, lerToken, usandoServidor } from "@/lib/servidor";
 
 export const CHAVE_LOCAL = "canteiro-digital:v1";
 export const CHAVE_CADASTROS = "canteiro-digital:cadastros:v1";
 const CHAVE_IA = "canteiro-digital:chave-api";
+/** Cópia local do que veio do servidor (abre mesmo sem conexão). Separada dos dados do modo local. */
+const CHAVE_CACHE = "canteiro-digital:cache-servidor:v1";
+const CAD = "\u0000cadastros"; // chave da fila de gravação para os cadastros
+const INTERVALO_SYNC = 15_000;
+const INTERVALO_COMPLETA = 5 * 60_000;
+
+interface Versionado<T = unknown> {
+  versao: number;
+  dados: T;
+}
+interface RespDados {
+  obras: ({ id: string } & Versionado<Obra>)[];
+  cadastros: Versionado | null;
+  cursor: number;
+}
+interface RespAlteracoes extends RespDados {
+  removidas: string[];
+}
 export const MODELO_API = "claude-sonnet-5-5";
 const RE_CHAVE = /^sk-ant-[A-Za-z0-9_-]{20,}$/;
 
@@ -109,6 +132,19 @@ export class Plataforma {
   private cadPendentes = 0;
   private ultimoStatus: Status | null = null;
   private iniciada = false;
+  // ---- modo servidor
+  private srv = false;
+  private srvCarregado = false;
+  private base = new Map<string, Versionado>(); // última versão recebida/gravada no servidor (obras e CAD)
+  private atuais = new Map<string, Obra>();
+  private cadAtual: unknown = null;
+  private cursor = 0;
+  private ultimaCompleta = 0;
+  private sincronizando = false;
+  private relogio: ReturnType<typeof setInterval> | null = null;
+  private espera = 3000;
+  private semConexao = false;
+  private aoFocar = () => { if (document.visibilityState !== "hidden") void this.sincronizar(); };
   /** Dentro da Claude a rede externa é bloqueada: a chave de API só vale no site. */
   readonly dentroDaClaude: boolean;
 
@@ -175,6 +211,10 @@ export class Plataforma {
       },
     };
     this.eventosInternos = eventos;
+    if (usandoServidor() && lerToken()) {
+      await this.iniciarServidor(eventos);
+      return;
+    }
     const usar = (nome: string) =>
       window.claude?.use ? window.claude.use(nome).catch(() => null) : Promise.resolve(null);
 
@@ -249,6 +289,12 @@ export class Plataforma {
   /** Grava as obras alteradas/removidas (e a cópia completa neste navegador). */
   /** Grava contatos e insumos (compartilhados entre as obras). */
   persistirCadastros(doc: unknown): void {
+    if (this.srv) {
+      this.cadAtual = doc;
+      this.guardarCache();
+      this.agendar(CAD, doc as Obra);
+      return;
+    }
     const ok = lsGravar(CHAVE_CADASTROS, JSON.stringify(doc));
     if (!this.colCad) {
       if (!ok) this.emitirStatus({ texto: "Não foi possível salvar neste navegador (espaço cheio ou navegação privada)", tipo: "erro" });
@@ -269,6 +315,14 @@ export class Plataforma {
 
   persistir(gravar: Obra[], remover: string[], todas: Obra[]): void {
     if (!gravar.length && !remover.length) return;
+    if (this.srv) {
+      for (const o of gravar) this.atuais.set(o.id, o);
+      for (const id of remover) this.atuais.delete(id);
+      this.guardarCache();
+      for (const o of gravar) this.agendar(o.id, o);
+      for (const id of remover) this.agendar(id, null);
+      return;
+    }
     const salvouLocal = lsGravar(CHAVE_LOCAL, JSON.stringify(todas));
     if (!this.col || this.somenteLeitura) {
       if (this.col) return; // somente leitura: o aviso já foi dado
@@ -287,7 +341,7 @@ export class Plataforma {
 
   private agendar(id: string, doc: Obra | null) {
     this.ultimo.set(id, doc);
-    if (!this.emVoo.has(id)) void this.bombear(id);
+    if (!this.emVoo.has(id)) void (this.srv ? this.bombearServidor(id) : this.bombear(id));
   }
 
   private async bombear(id: string) {
@@ -321,6 +375,197 @@ export class Plataforma {
         this.emitirStatus({ texto: "Banco cheio: exclua obras antigas para continuar salvando", tipo: "erro" });
       } else {
         this.emitirStatus({ texto: "Erro ao salvar. Suas alterações estão guardadas neste navegador.", tipo: "erro" });
+      }
+    } finally {
+      this.emVoo.delete(id);
+    }
+  }
+
+  // ------------------------------------------------------------ servidor do escritório
+  private async iniciarServidor(eventos: Eventos) {
+    this.srv = true;
+    try {
+      const r = await api<RespDados>("/dados");
+      this.aplicarCompleta(r, true);
+      eventos.status({ texto: "Salvo no servidor · compartilhado com a equipe", tipo: "ok" });
+    } catch (e) {
+      if (e instanceof ErroServidor && e.status === 401) return; // a tela de entrada volta sozinha
+      console.error(e);
+      // sem conexão: abre com a última cópia recebida deste servidor
+      const c = lerJsonLocal(CHAVE_CACHE) as (RespDados & { cadAtual?: unknown; atuais?: Obra[] }) | null;
+      if (c) {
+        for (const o of c.obras ?? []) this.base.set(o.id, { versao: o.versao, dados: o.dados });
+        if (c.cadastros) this.base.set(CAD, c.cadastros);
+        for (const o of c.atuais ?? c.obras?.map((x) => x.dados) ?? []) this.atuais.set(o.id, o);
+        this.cadAtual = c.cadAtual ?? c.cadastros?.dados ?? null;
+        this.cursor = c.cursor ?? 0;
+      }
+      this.srvCarregado = true;
+      eventos.cadastros(this.cadAtual);
+      eventos.dados([...this.atuais.values()], true);
+      this.semConexao = true;
+      eventos.status({ texto: "Sem conexão com o servidor: mostrando a última cópia deste aparelho", tipo: "erro" });
+    }
+    this.retomar();
+  }
+
+  /** Liga a sincronização periódica (e ao voltar para a aba). */
+  retomar(): void {
+    if (!this.srv || this.relogio || typeof window === "undefined") return;
+    this.relogio = setInterval(() => void this.sincronizar(), INTERVALO_SYNC);
+    window.addEventListener("focus", this.aoFocar);
+    document.addEventListener("visibilitychange", this.aoFocar);
+  }
+
+  parar(): void {
+    if (this.relogio) clearInterval(this.relogio);
+    this.relogio = null;
+    if (typeof window === "undefined") return;
+    window.removeEventListener("focus", this.aoFocar);
+    document.removeEventListener("visibilitychange", this.aoFocar);
+  }
+
+  private pendente(id: string) {
+    return this.ultimo.has(id) || this.emVoo.has(id);
+  }
+
+  private aplicarCompleta(r: RespDados, primeira: boolean) {
+    const vindas = new Set<string>();
+    for (const o of r.obras) {
+      vindas.add(o.id);
+      if (this.pendente(o.id)) continue;
+      this.base.set(o.id, { versao: o.versao, dados: o.dados });
+      this.atuais.set(o.id, o.dados);
+    }
+    for (const id of [...this.atuais.keys()]) {
+      if (!vindas.has(id) && !this.pendente(id)) { this.atuais.delete(id); this.base.delete(id); }
+    }
+    if (!this.pendente(CAD)) {
+      if (r.cadastros) this.base.set(CAD, r.cadastros);
+      this.cadAtual = r.cadastros?.dados ?? this.cadAtual;
+      if (r.cadastros || primeira) this.eventosInternos?.cadastros(this.cadAtual);
+    }
+    this.cursor = r.cursor;
+    this.ultimaCompleta = Date.now();
+    this.srvCarregado = true;
+    this.eventosInternos?.dados([...this.atuais.values()], primeira);
+    this.guardarCache();
+  }
+
+  /** Busca o que outras pessoas mudaram desde a última vez. */
+  async sincronizar(): Promise<void> {
+    if (!this.srv || !this.srvCarregado || this.sincronizando || this.ultimo.size || this.emVoo.size) return;
+    this.sincronizando = true;
+    try {
+      if (Date.now() - this.ultimaCompleta > INTERVALO_COMPLETA) {
+        this.aplicarCompleta(await api<RespDados>("/dados"), false);
+      } else {
+        const r = await api<RespAlteracoes>(`/alteracoes?desde=${this.cursor}`);
+        let mudou = false;
+        for (const o of r.obras) {
+          if (this.pendente(o.id)) continue;
+          const b = this.base.get(o.id);
+          if (b && o.versao <= b.versao) continue; // eco da própria gravação
+          this.base.set(o.id, { versao: o.versao, dados: o.dados });
+          this.atuais.set(o.id, o.dados);
+          mudou = true;
+        }
+        for (const id of r.removidas) {
+          if (this.pendente(id) || !this.atuais.has(id)) continue;
+          this.atuais.delete(id);
+          this.base.delete(id);
+          mudou = true;
+        }
+        if (r.cadastros && !this.pendente(CAD) && r.cadastros.versao > (this.base.get(CAD)?.versao ?? 0)) {
+          this.base.set(CAD, r.cadastros);
+          this.cadAtual = r.cadastros.dados;
+          this.eventosInternos?.cadastros(this.cadAtual);
+        }
+        this.cursor = r.cursor;
+        if (mudou) this.eventosInternos?.dados([...this.atuais.values()], false);
+        if (mudou || r.cadastros) this.guardarCache();
+      }
+      if (this.semConexao) {
+        this.semConexao = false;
+        this.emitirStatus({ texto: "Conectado ao servidor", tipo: "ok" });
+      }
+    } catch (e) {
+      if (e instanceof ErroServidor && e.codigo === "rede" && !this.semConexao) {
+        this.semConexao = true;
+        this.emitirStatus({ texto: "Sem conexão com o servidor: as alterações ficam neste aparelho até voltar", tipo: "erro" });
+      }
+    } finally {
+      this.sincronizando = false;
+    }
+  }
+
+  private guardarCache() {
+    const obras = [...this.base.entries()].filter(([k]) => k !== CAD).map(([id, v]) => ({ id, ...(v as Versionado<Obra>) }));
+    lsGravar(CHAVE_CACHE, JSON.stringify({ obras, cadastros: this.base.get(CAD) ?? null, cursor: this.cursor, atuais: [...this.atuais.values()], cadAtual: this.cadAtual }));
+  }
+
+  private async bombearServidor(id: string) {
+    this.emVoo.add(id);
+    this.emitirStatus({ texto: "Salvando…", tipo: "salvando" });
+    const ehCad = id === CAD;
+    const caminho = ehCad ? "/cadastros" : `/obras/${encodeURIComponent(id)}`;
+    let mesclou = false;
+    try {
+      while (this.ultimo.has(id)) {
+        let doc = this.ultimo.get(id) ?? null;
+        this.ultimo.delete(id);
+        if (doc === null) {
+          await api(caminho, { metodo: "DELETE" });
+          this.base.delete(id);
+          continue;
+        }
+        let b = this.base.get(id);
+        for (let tentativa = 0; ; tentativa++) {
+          try {
+            const r = await api<{ versao: number }>(caminho, { metodo: "PUT", corpo: { dados: doc, versao: b?.versao ?? 0 } });
+            this.base.set(id, { versao: r.versao, dados: doc });
+            break;
+          } catch (e) {
+            if (!(e instanceof ErroServidor) || e.codigo !== "conflito" || tentativa >= 4) throw e;
+            // outra pessoa gravou antes: mescla a edição daqui com a versão do servidor e tenta de novo
+            const atual = (e.corpo.atual ?? null) as Versionado | null;
+            const maisNova = this.ultimo.get(id);
+            if (maisNova) { doc = maisNova; this.ultimo.delete(id); }
+            doc = atual ? mesclar(b?.dados, doc, atual.dados) : doc;
+            b = atual ?? undefined;
+            if (ehCad) this.cadAtual = doc; else this.atuais.set(id, doc as Obra);
+            mesclou = true;
+          }
+        }
+      }
+      this.espera = 3000;
+      if (mesclou) {
+        this.guardarCache();
+        if (ehCad) this.eventosInternos?.cadastros(this.cadAtual);
+        else this.eventosInternos?.dados([...this.atuais.values()], false);
+      }
+      if (this.semConexao) this.semConexao = false;
+      if (this.emVoo.size <= 1 && !this.ultimo.size) {
+        this.emitirStatus(mesclou
+          ? { texto: "Salvo · mesclado com alterações de outra pessoa", tipo: "ok" }
+          : { texto: "Salvo no servidor", tipo: "ok" });
+      }
+    } catch (e) {
+      const err = e as ErroServidor;
+      if (err instanceof ErroServidor && err.status === 401) return; // sessão expirou: a tela de entrada volta
+      // devolve à fila para tentar de novo (sem apagar uma edição mais nova que já esteja lá)
+      const atual = ehCad ? this.cadAtual : this.atuais.get(id) ?? null;
+      if (!this.ultimo.has(id)) this.ultimo.set(id, (atual ?? null) as Obra | null);
+      if (err instanceof ErroServidor && (err.codigo === "rede" || err.status >= 500 || err.status === 429)) {
+        this.semConexao = err.codigo === "rede";
+        this.emitirStatus({ texto: err.codigo === "rede" ? "Sem conexão: as alterações ficam neste aparelho e vão ao servidor quando voltar" : "O servidor está com problema; tentando de novo…", tipo: "erro" });
+        const espera = this.espera;
+        this.espera = Math.min(60_000, this.espera * 2);
+        setTimeout(() => { if (this.ultimo.has(id) && !this.emVoo.has(id)) void this.bombearServidor(id); }, espera);
+      } else {
+        console.error(e);
+        this.ultimo.delete(id);
+        this.emitirStatus({ texto: `Não foi possível salvar no servidor: ${err.message}`, tipo: "erro" });
       }
     } finally {
       this.emVoo.delete(id);

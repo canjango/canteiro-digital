@@ -1,21 +1,33 @@
 "use client";
 
 import * as React from "react";
-import { EyeIcon, EyeOffIcon, Loader2Icon, LockKeyholeIcon, ShieldCheckIcon } from "lucide-react";
+import { EyeIcon, EyeOffIcon, Loader2Icon, LockKeyholeIcon, RefreshCwIcon, ServerIcon, ShieldCheckIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import * as ac from "@/lib/acesso";
+import * as ct from "@/lib/contas";
+import { conectar, descobrirServidor, desconectar, enderecoAtual, EVENTO_SESSAO_EXPIRADA, ErroServidor } from "@/lib/servidor";
 import { cn } from "@/lib/utils";
 import { BotaoTema } from "./tema";
 
-interface ApiAcesso {
-  conta: ac.ContaPublica | null;
-  contas: ac.ContaPublica[];
+interface EstadoAcesso {
+  conta: ct.ContaPublica | null;
+  contas: ct.ContaPublica[];
   pronto: boolean;
+  /** já existe o primeiro administrador (neste navegador ou no servidor) */
+  configurado: boolean;
+  modo: "local" | "servidor";
+  endereco: string;
+  /** o servidor não respondeu ao abrir */
+  erroServidor: string;
+}
+
+interface ApiAcesso extends EstadoAcesso {
   entrar: (usuario: string, senha: string, lembrar: boolean) => Promise<void>;
-  sair: () => void;
-  recarregar: () => void;
+  primeiroAcesso: (d: { escritorio: string; nome: string; usuario: string; senha: string; lembrar: boolean }) => Promise<void>;
+  sair: () => Promise<void>;
+  recarregar: () => Promise<void>;
 }
 
 const Contexto = React.createContext<ApiAcesso | null>(null);
@@ -26,31 +38,49 @@ export function useAcesso(): ApiAcesso {
   return c;
 }
 
+const INICIAL: EstadoAcesso = { conta: null, contas: [], pronto: false, configurado: false, modo: "local", endereco: "", erroServidor: "" };
+
 export function ProvedorAcesso({ children }: { children: React.ReactNode }) {
-  const [estado, setEstado] = React.useState<{ conta: ac.ContaPublica | null; contas: ac.ContaPublica[]; pronto: boolean }>({
-    conta: null, contas: [], pronto: false,
-  });
-  const recarregar = React.useCallback(() => {
-    setEstado({ conta: ac.sessaoAtual(), contas: ac.listarContas(), pronto: true });
+  const [estado, setEstado] = React.useState<EstadoAcesso>(INICIAL);
+  const recarregar = React.useCallback(async () => {
+    await descobrirServidor();
+    const base = { modo: ct.modo(), endereco: enderecoAtual() };
+    try {
+      const configurado = await ct.configurado();
+      const conta = configurado ? await ct.sessaoAtual() : null;
+      const contas = conta ? await ct.listar().catch(() => [conta]) : base.modo === "local" ? ac.listarContas() : [];
+      setEstado({ ...base, conta, contas, configurado, pronto: true, erroServidor: "" });
+    } catch (e) {
+      setEstado({ ...base, conta: null, contas: [], configurado: true, pronto: true, erroServidor: e instanceof Error ? e.message : "O servidor não respondeu." });
+    }
   }, []);
   React.useEffect(() => {
-    recarregar();
-    // outra aba saiu ou entrou: acompanha
-    const ouvir = (e: StorageEvent) => { if (e.key?.startsWith("canteiro-digital:")) recarregar(); };
+    void recarregar();
+    // outra aba saiu ou entrou (modo local), ou a sessão do servidor expirou: acompanha
+    const ouvir = (e: StorageEvent) => { if (e.key?.startsWith("canteiro-digital:") && ct.modo() === "local") void recarregar(); };
+    const expirou = () => void recarregar();
     window.addEventListener("storage", ouvir);
-    return () => window.removeEventListener("storage", ouvir);
+    window.addEventListener(EVENTO_SESSAO_EXPIRADA, expirou);
+    return () => {
+      window.removeEventListener("storage", ouvir);
+      window.removeEventListener(EVENTO_SESSAO_EXPIRADA, expirou);
+    };
   }, [recarregar]);
   const api = React.useMemo<ApiAcesso>(
     () => ({
       ...estado,
       recarregar,
       entrar: async (u, s, l) => {
-        await ac.entrar(u, s, l);
-        recarregar();
+        await ct.entrar(u, s, l);
+        await recarregar();
       },
-      sair: () => {
-        ac.sair();
-        recarregar();
+      primeiroAcesso: async (d) => {
+        await ct.primeiroAcesso(d);
+        await recarregar();
+      },
+      sair: async () => {
+        await ct.sair();
+        await recarregar();
       },
     }),
     [estado, recarregar],
@@ -67,8 +97,8 @@ export function Portao({ children }: { children: React.ReactNode }) {
 
 // ---------------------------------------------------------------- tela de entrada
 function TelaEntrada() {
-  const { contas } = useAcesso();
-  const primeiro = contas.length === 0;
+  const { configurado, modo, erroServidor } = useAcesso();
+  const primeiro = !configurado;
   return (
     <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <aside className="relative hidden overflow-hidden bg-trilho p-10 text-trilho-foreground lg:flex lg:flex-col lg:justify-between">
@@ -94,11 +124,14 @@ function TelaEntrada() {
             <span className="marca-listras size-9 rounded-md" aria-hidden />
             <span className="text-lg font-bold">Canteiro Digital</span>
           </div>
-          {primeiro ? <FormPrimeiroAcesso /> : <FormEntrar />}
+          {erroServidor ? <ServidorFora /> : primeiro ? <FormPrimeiroAcesso /> : <FormEntrar />}
           <p className="flex items-start gap-2 text-[0.78rem] text-muted-foreground">
             <ShieldCheckIcon className="mt-0.5 size-4 shrink-0" />
-            O acesso fica guardado neste aparelho e a senha é salva apenas de forma criptografada.
+            {modo === "servidor"
+              ? "Os dados ficam no servidor do escritório (PostgreSQL) e a senha é guardada só de forma criptografada."
+              : "O acesso fica guardado neste aparelho e a senha é salva apenas de forma criptografada."}
           </p>
+          <EscolhaServidor />
         </div>
       </main>
     </div>
@@ -143,7 +176,7 @@ function FormEntrar() {
     try {
       await entrar(String(f.get("usuario") ?? ""), String(f.get("senha") ?? ""), f.get("lembrar") === "on");
     } catch (x) {
-      setErro(x instanceof ac.AcessoErro ? x.message : "Não foi possível entrar.");
+      setErro(x instanceof ac.AcessoErro || x instanceof ErroServidor ? x.message : "Não foi possível entrar.");
       setCarregando(false);
     }
   };
@@ -173,7 +206,7 @@ function FormEntrar() {
 }
 
 function FormPrimeiroAcesso() {
-  const { entrar } = useAcesso();
+  const { primeiroAcesso, modo } = useAcesso();
   const [erro, setErro] = React.useState("");
   const [senha, setSenha] = React.useState("");
   const [carregando, setCarregando] = React.useState(false);
@@ -181,15 +214,18 @@ function FormPrimeiroAcesso() {
   const enviar = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const d = { nome: String(f.get("nome") ?? ""), usuario: String(f.get("usuario") ?? ""), senha: String(f.get("senha") ?? "") };
+    const d = {
+      escritorio: String(f.get("escritorio") ?? ""), nome: String(f.get("nome") ?? ""), usuario: String(f.get("usuario") ?? ""),
+      senha: String(f.get("senha") ?? ""), lembrar: f.get("lembrar") === "on",
+    };
     setErro("");
+    if (modo === "servidor" && d.escritorio.trim().length < 2) return setErro("Informe o nome do escritório.");
     if (d.senha !== String(f.get("confirmar") ?? "")) return setErro("As senhas não são iguais.");
     setCarregando(true);
     try {
-      const c = await ac.criarConta(d);
-      await entrar(c.usuario, d.senha, f.get("lembrar") === "on");
+      await primeiroAcesso(d);
     } catch (x) {
-      setErro(x instanceof ac.AcessoErro ? x.message : "Não foi possível criar o acesso.");
+      setErro(x instanceof ac.AcessoErro || x instanceof ErroServidor ? x.message : "Não foi possível criar o acesso.");
       setCarregando(false);
     }
   };
@@ -197,9 +233,17 @@ function FormPrimeiroAcesso() {
     <form className="flex flex-col gap-4" onSubmit={enviar} noValidate>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold">Primeiro acesso</h1>
-        <p className="text-sm text-muted-foreground">Crie o usuário administrador. Depois você cadastra os acessos da equipe.</p>
+        <p className="text-sm text-muted-foreground">
+          {modo === "servidor" ? "Configure o servidor: crie o escritório e o usuário administrador. Depois você cadastra os acessos da equipe." : "Crie o usuário administrador. Depois você cadastra os acessos da equipe."}
+        </p>
       </div>
       <Erro texto={erro} />
+      {modo === "servidor" && (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="escritorio" className="text-sm font-medium">Nome do escritório</label>
+          <Input id="escritorio" name="escritorio" required maxLength={120} placeholder="ex.: ARQX Arquitetura" className="h-11" />
+        </div>
+      )}
       <div className="flex flex-col gap-1.5">
         <label htmlFor="nome" className="text-sm font-medium">Seu nome</label>
         <Input id="nome" name="nome" autoComplete="name" required maxLength={80} autoFocus className="h-11" />
@@ -229,5 +273,73 @@ function FormPrimeiroAcesso() {
         {carregando ? "Criando…" : "Criar acesso e entrar"}
       </Button>
     </form>
+  );
+}
+
+// ---------------------------------------------------------------- servidor do escritório
+function ServidorFora() {
+  const { erroServidor, endereco, recarregar } = useAcesso();
+  const [tentando, setTentando] = React.useState(false);
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold">Servidor indisponível</h1>
+        <p className="text-sm text-muted-foreground">Não foi possível falar com o servidor do escritório <span className="font-mono text-foreground">{endereco.replace(/^https?:\/\//, "")}</span>.</p>
+      </div>
+      <Erro texto={erroServidor} />
+      <Button className="h-11" disabled={tentando} onClick={async () => { setTentando(true); await recarregar(); setTentando(false); }}>
+        {tentando ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}Tentar de novo
+      </Button>
+    </div>
+  );
+}
+
+/** Rodapé da tela de entrada: escolher entre servidor do escritório e “só neste aparelho”. */
+function EscolhaServidor() {
+  const { modo, endereco, recarregar } = useAcesso();
+  const [aberto, setAberto] = React.useState(false);
+  const [erro, setErro] = React.useState("");
+  const [ocupado, setOcupado] = React.useState(false);
+  const ligar = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setErro("");
+    setOcupado(true);
+    try {
+      await conectar(String(new FormData(e.currentTarget).get("endereco") ?? ""));
+      setAberto(false);
+      await recarregar();
+    } catch (x) {
+      setErro(x instanceof Error ? x.message : "Não foi possível conectar.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-2 border-t pt-4 text-[0.82rem]">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+        <ServerIcon className="size-4 shrink-0" />
+        {modo === "servidor"
+          ? <>Servidor do escritório: <span className="font-mono text-foreground">{endereco.replace(/^https?:\/\//, "")}</span></>
+          : "Modo local: os dados ficam só neste navegador."}
+        <button type="button" className="font-semibold text-foreground underline" onClick={() => setAberto((x) => !x)} aria-expanded={aberto}>
+          {modo === "servidor" ? "trocar" : "conectar a um servidor"}
+        </button>
+      </p>
+      {aberto && (
+        <form className="flex flex-col gap-2" onSubmit={ligar}>
+          <label htmlFor="endereco-servidor" className="font-medium">Endereço do servidor</label>
+          <div className="flex gap-2">
+            <Input id="endereco-servidor" name="endereco" required placeholder="https://canteiro.seuescritorio.com.br" defaultValue={modo === "servidor" ? endereco : ""} autoCapitalize="none" spellCheck={false} className="h-10" />
+            <Button type="submit" disabled={ocupado} className="h-10">{ocupado ? <Loader2Icon className="animate-spin" /> : "Conectar"}</Button>
+          </div>
+          <Erro texto={erro} />
+          {modo === "servidor" && (
+            <button type="button" className="self-start text-muted-foreground underline" onClick={async () => { desconectar(); setAberto(false); await recarregar(); }}>
+              Usar só neste aparelho (sem servidor)
+            </button>
+          )}
+        </form>
+      )}
+    </div>
   );
 }

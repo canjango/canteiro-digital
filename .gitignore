@@ -5,3 +5,7 @@ next-env.d.ts
 *.tsbuildinfo
 artifact/
 src/artifact/tailwind.out.css
+server/node_modules/
+server/dist/
+.env
+server/.env

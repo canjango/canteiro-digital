@@ -1,0 +1,35 @@
+# Sobe o Canteiro Digital com PostgreSQL no próprio computador/servidor do escritório:
+#   1. copie server/.env.example para .env e troque as senhas
+#   2. docker compose up -d --build
+#   3. abra http://localhost:3000 e faça o primeiro acesso (cria o escritório e o administrador)
+services:
+  banco:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: canteiro
+      POSTGRES_USER: canteiro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no arquivo .env}
+    volumes:
+      - dados-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U canteiro -d canteiro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      banco:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://canteiro:${POSTGRES_PASSWORD}@banco:5432/canteiro
+      CORS_ORIGENS: ${CORS_ORIGENS:-https://canjango.github.io}
+      CONFIAR_PROXY: ${CONFIAR_PROXY:-0}
+    ports:
+      - "${PORTA:-3000}:3000"
+
+volumes:
+  dados-postgres:
